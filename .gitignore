@@ -1,0 +1,50 @@
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+.claude.bak/
+
+# PDF files
+*.pdf
+
+# LaTeX intermediate files
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.synctex.gz(busy)
+*.synctex(busy)
+*.fdb_latexmk
+*.fls
+*.xdv
+*.nav
+
+# Build outputs
+*.dvi
+*.ps
+
+# Exclude specific folders
+my idea/
+tpami_tem/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Node
+node_modules/
+package-lock.json

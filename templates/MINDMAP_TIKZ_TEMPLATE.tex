@@ -1,0 +1,36 @@
+\documentclass[tikz,border=6pt]{standalone}
+\usetikzlibrary{mindmap,trees,shadows}
+
+\begin{document}
+\begin{tikzpicture}[
+  mindmap,
+  text=white,
+  every node/.style={concept, execute at begin node=\hskip0pt},
+  root concept/.append style={
+    concept color=black!75,
+    minimum size=4.0cm,
+    font=\Large\bfseries,
+    text width=3.5cm,
+    align=center
+  },
+  level 1 concept/.append style={
+    level distance=7.0cm,
+    sibling angle=__LEVEL1_ANGLE__,
+    font=\small\bfseries,
+    text width=2.9cm,
+    align=center
+  },
+  level 2 concept/.append style={
+    level distance=4.2cm,
+    sibling angle=28,
+    font=\scriptsize,
+    text width=2.5cm,
+    align=center
+  }
+]
+\path
+node[concept] {__ROOT_LABEL__}
+__CHILDREN__
+;
+\end{tikzpicture}
+\end{document}
