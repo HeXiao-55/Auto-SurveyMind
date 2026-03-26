@@ -1,0 +1,27 @@
+{
+  "paper_id": "2509.16989",
+  "title": "PTQTP: Post-Training Quantization to Trit-Planes for Large Language Models",
+  "models": {
+    "LLaMA-2-7B": {
+      "WikiText-2_FP16": "5.47",
+      "WikiText-2_PTQTP_1.58bit": "6.30",
+      "ARC-C_PTQTP_1.58bit": "42.24",
+      "BoolQ_PTQTP_1.58bit": "74.46",
+      "HellaSwag_PTQTP_1.58bit": "54.89",
+      "PIQA_PTQTP_1.58bit": "77.26",
+      "Average_PTQTP_1.58bit": "60.45"
+    },
+    "LLaMA-3-8B": {
+      "WikiText-2_FP16": "6.23",
+      "WikiText-2_PTQTP_1.58bit": "8.53"
+    },
+    "LLaMA-3-70B": {
+      "WikiText-2_FP16": "2.81",
+      "WikiText-2_PTQTP_1.58bit": "7.76"
+    },
+    "Qwen-3-8B": {
+      "WikiText-2_FP16": "9.71",
+      "WikiText-2_PTQTP_1.58bit": "11.80"
+    }
+  }
+}

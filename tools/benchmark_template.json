@@ -1,0 +1,23 @@
+{
+  "_comment": "Benchmark Data Template - Fill in values manually for accurate comparison",
+  "paper_id": "2306.00978",
+  "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+  "models": {
+    "LLaMA-2-7B": {
+      "WikiText-2": "5.47",
+      "WikiText-2_AWQ_4bit": "5.60",
+      "WikiText-2_GPTQ_4bit": "5.69",
+      "WikiText-2_AWQ_3bit": "6.24"
+    },
+    "LLaMA-2-13B": {
+      "WikiText-2": "4.88",
+      "WikiText-2_AWQ_4bit": "5.32",
+      "WikiText-2_GPTQ_4bit": "5.48"
+    },
+    "Mistral-7B": {
+      "WikiText-2": "4.14",
+      "WikiText-2_AWQ_4bit": "4.30",
+      "WikiText-2_AWQ_3bit": "4.83"
+    }
+  }
+}
