@@ -43,6 +43,8 @@ Stage 0 (Skill) ─────────────────────�
         │
         ▼
   SURVEY_SCOPE.md  (refined topic + keywords + section outline)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated]
 
 Stage 1 ──────────────────────────────────────────────────────────────────────
   /research-lit "refined subfield"   [Skill]
@@ -54,6 +56,8 @@ Stage 1 ────────────────────────
         ▼
   gate1_research_lit/paper_list.json  (machine-readable paper inventory)
   gate1_research_lit/papers/*.pdf     (downloaded PDFs, optional)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated]
 
 Stage 2 ──────────────────────────────────────────────────────────────────────
   /paper-analysis "topic"   [Skill]
@@ -63,6 +67,8 @@ Stage 2 ────────────────────────
         │
         ▼
   gate2_paper_analysis/*_analysis.md  (per-paper structured analysis)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated]
 
   ── OR, for bulk API-level coverage check ──
   python3 tools/surveymind_run.py --stage paper-analysis   [CLI]
@@ -71,6 +77,8 @@ Stage 2 ────────────────────────
         │
         ▼
   gate2_paper_analysis/all_papers_triage.json  (12-field triage for all papers in gate1 paper_list.json)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated]
 
 Stage 3 ──────────────────────────────────────────────────────────────────────
   /taxonomy-build "topic"   [Skill]
@@ -80,6 +88,8 @@ Stage 3 ────────────────────────
         │
         ▼
   gate3_taxonomy/taxonomy.md  (hierarchical classification structure)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated]
 
 Stage 4 ──────────────────────────────────────────────────────────────────────
   /gap-identify "topic"   [Skill]
@@ -89,6 +99,8 @@ Stage 4 ────────────────────────
         │
         ▼
   gate4_gap_analysis/gap_analysis.md  (research gaps ranked by severity + confidence)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated]
 
 Stage 5 ──────────────────────────────────────────────────────────────────────
   /survey-write "topic"   [Skill]
@@ -98,6 +110,8 @@ Stage 5 ────────────────────────
         │
         ▼
   gate5_survey_write/SURVEY_DRAFT.md  (publication-ready survey document)
+        │
+        ▼ [state saved: WORKLOG.md + findings.md updated — survey complete]
 
 Stage 6 ──────────────────────────────────────────────────────────────────────
   python3 tools/surveymind_run.py --stage corpus-extract   [CLI]
@@ -212,6 +226,9 @@ claude
 > /survey-brainstorm "{TOPIC_DESCRIPTION}"
 > /survey-pipeline "{TOPIC}"
 
+# Resume: the agent automatically reads WORKLOG.md + findings.md
+# on session start to recover pipeline state — no manual action needed
+
 # Option B: CLI-based (reproducible, scriptable)
 cd SurveyMind
 python3 tools/surveymind_run.py --stage brainstorm \
@@ -265,7 +282,7 @@ python3 tools/surveymind_run.py --stage all \
 | **Auto-Proceed Mode** | Once confirmed, the pipeline runs autonomously through all stages — no repeated user confirmation needed |
 | **Topic Refinement** | `/survey-brainstorm` jointly refines fuzzy topics into focused survey scopes |
 | **Multi-source Search** | ArXiv, DBLP, Semantic Scholar, web — automatically find relevant papers |
-| **Structured Paper Analysis** | 12-field classification: model type, method category, training paradigm, evaluation focus, hardware co-design, quantization bit scope, etc. |
+| **Structured Paper Analysis** | Multi-dimensional classification extracted dynamically from the collected paper corpus — classification dimensions are not fixed in advance but emerge from the literature itself |
 | **Evidence Binding** | Every classification cites original paper text — fully auditable |
 | **Auto Taxonomy** | Hierarchical taxonomy built from classified papers (method → submethod → specific technique) |
 | **Gap Analysis** | Identifies unexplored combinations, under-explored settings, benchmark gaps |
@@ -275,24 +292,16 @@ python3 tools/surveymind_run.py --stage all \
 
 ---
 
-## Taxonomy System — 12 Fields
+## How Taxonomy Emerges from Literature
 
-Papers are classified across 12 structured fields:
+The taxonomy is **not predefined** — it is induced from the collected paper corpus. Stage 2 (paper analysis) extracts classification dimensions dynamically from each paper, including:
 
-| # | Field | Description |
-|---|-------|-------------|
-| 1 | Model Type | LLM, MLLM, MoE-LLM, SLM, VLM |
-| 2 | Method Category | Representation Enhancement, Sparsity Exploitation, Knowledge Transfer, Hardware Co-design |
-| 3 | Specific Method | Learnable Scaling, Structured Sparsity, Distillation, Rotation, KV-specific Quantization |
-| 4 | Training Paradigm | QAT, PTQ, Hybrid, From-Scratch Low-bit Pretraining |
-| 5 | Core Challenge | Outlier sensitivity, representation capacity, gradient flow disruption |
-| 6 | Evaluation Focus | Perplexity, Downstream Accuracy, End-to-end Latency, Energy Efficiency |
-| 7 | Hardware Co-design | CPU Kernel, GPU Mixed-precision, PIM/CIM Architecture, ASIC-friendly |
-| 8 | Summary | Paper summary + survey contribution mapping |
-| 9 | Quantization Bit Scope | 1-bit, 1.58-bit, 2-bit, 3-bit, 4-bit |
-| 10 | General Method Type | Rotation/Transform, Reconstruction-based, Sparsity-aware, Learnable threshold |
-| 11 | Core Challenge Addressed | Which of the 3 core challenges this method addresses |
-| 12 | Ultra-low-bit Relevance Summary | Relevance to ultra-low bit (<2-bit) survey scope |
+- **Method dimensions**: what technique family does this paper belong to (e.g., rotation, reconstruction, pruning, distillation)?
+- **Problem dimensions**: what challenge does it address (e.g., outlier handling, gradient flow, representation collapse)?
+- **Evaluation dimensions**: what metrics and benchmarks does it report?
+- **Scope dimensions**: what model types, bit-widths, and training paradigms are covered?
+
+Stage 3 (`/taxonomy-build`) then clusters all papers into a **hierarchical structure** — groupings are derived entirely from the papers found, not from any fixed schema. The resulting taxonomy is therefore unique to each survey topic and corpus.
 
 ---
 
@@ -335,18 +344,6 @@ SurveyMind/
 ├── WORKLOG.md                      # Optional global execution log
 └── README.md
 ```
-
----
-
-## Session Recovery
-
-SurveyMind maintains state across sessions:
-
-- **CLAUDE.md** — Pipeline status, reading order, file organization
-- **WORKLOG.md** — Phase-by-phase execution log
-- **findings.md** — Gate-by-gate summaries for context recovery
-
-When resuming a session, the agent automatically reads these files to restore context.
 
 ---
 
