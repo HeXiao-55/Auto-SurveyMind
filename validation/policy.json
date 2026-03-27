@@ -1,0 +1,35 @@
+{
+  "strict_default": true,
+  "max_retry_default": 2,
+  "report_dir": "validation/reports",
+  "baseline_file": "validation/guardrails_baseline.json",
+  "allow_write_patterns": [
+    "surveys/**",
+    "paper_analysis_results/**",
+    "my idea/**",
+    "validation/**",
+    "findings.md",
+    "corpus_report.json",
+    "corpus_report.md",
+    "taxonomy.md",
+    "gap_analysis.md",
+    "SURVEY_DRAFT.md",
+    "benchmark_comparison.md",
+    "benchmark_comparison_latex.md",
+    "WORKLOG.md",
+    "PROJECT_REPORT.md",
+    "EXECUTION_LOG.md",
+    "paper_list.json",
+    "CLAUDE.md"
+  ],
+  "protected_patterns": [
+    "tools/**",
+    "skills/**",
+    "templates/**",
+    "mcp-servers/**",
+    "docs/**",
+    "install.sh",
+    "README.md",
+    "README_CN.md"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-03-27T07:17:21.260809+00:00",
+  "scope": "benchmarks",
+  "passed": true,
+  "strict": true,
+  "retry_config": 1,
+  "retried": 0,
+  "critical_count": 0,
+  "warning_count": 7,
+  "issues": [
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-1-7B:2408.01803_C4",
+      "retryable": true
+    },
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-1-7B:2408.01803_PTB",
+      "retryable": true
+    },
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-2-13B:2408.01803_C4",
+      "retryable": true
+    },
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-2-13B:2408.01803_PTB",
+      "retryable": true
+    },
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-1-13B:2408.01803_WikiText-2",
+      "retryable": true
+    },
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-1-13B:2408.01803_C4",
+      "retryable": true
+    },
+    {
+      "level": "warning",
+      "code": "NON_NUMERIC_METRIC",
+      "message": "Cannot parse metric value: -",
+      "item": "2408.01803_benchmark.json:LLaMA-1-13B:2408.01803_PTB",
+      "retryable": true
+    }
+  ]
+}

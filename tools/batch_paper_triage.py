@@ -337,6 +337,28 @@ def route_paper(classification: dict, rules: list[dict]) -> str:
     return "02/01_general_model_quantization_surveys"
 
 
+def build_framework_vocabulary(rules: list[dict]) -> set[str]:
+    """Build a loose keyword pool from routing rules for framework-aware pruning."""
+    vocab: set[str] = set()
+    for rule in rules:
+        for key in ("training", "method", "bits"):
+            for item in rule.get(key, []) or []:
+                text = str(item).lower()
+                vocab.add(text)
+                for tok in re.findall(r"[a-z0-9\.\-\+]+", text):
+                    if len(tok) >= 3:
+                        vocab.add(tok)
+    # Keep a few broad anchors to avoid over-pruning borderline but relevant papers.
+    vocab.update({"quantization", "low-bit", "llm", "language model", "transformer"})
+    return vocab
+
+
+def framework_match_keywords(text: str, framework_vocab: set[str]) -> list[str]:
+    hits = [kw for kw in framework_vocab if kw and kw in text]
+    # Deterministic order for stable outputs.
+    return sorted(hits)[:12]
+
+
 def load_routing_config(path: str) -> list[dict]:
     if not path:
         return DEFAULT_ROUTING_RULES
@@ -368,17 +390,23 @@ def build_triage_report(
     arxiv_json_path: str,
     output_path: str,
     keywords: list[str],
+    routing_config_path: str | None = None,
     tier_filter: int | None = None,
+    min_score: int = 0,
+    coarse_prune: bool = True,
     delay: float = 1.0,
     verbose: bool = False,
 ) -> dict:
     papers = load_arxiv_json(arxiv_json_path)
-    rules = DEFAULT_ROUTING_RULES
+    rules = load_routing_config(routing_config_path)
+    framework_vocab = build_framework_vocabulary(rules)
 
     results = []
     tier_counts = {"Tier 1 – Core": 0, "Tier 2 – High Relevance": 0,
                    "Tier 3 – Related": 0, "Tier 4 – Peripheral": 0}
     subsection_counts = {}
+    kept_count = 0
+    pruned_count = 0
 
     for i, entry in enumerate(papers):
         arid = entry.get("id") or entry.get("arxiv_id", "")
@@ -405,12 +433,45 @@ def build_triage_report(
 
         classification = classify_12field(meta, keywords)
         subsection = route_paper(classification, rules)
+        text = (meta.get("title", "") + " " + meta.get("abstract", "")).lower()
+        fw_hits = framework_match_keywords(text, framework_vocab)
+        classification["framework_match_count"] = len(fw_hits)
+        classification["framework_matched_keywords"] = fw_hits
+
+        # Coarse prune policy: keep high recall, only remove clearly irrelevant.
+        # Clearly irrelevant = below min_score and no framework evidence.
+        keep = True
+        if coarse_prune:
+            keep = (classification["relevance_score"] >= min_score) or bool(fw_hits)
+        else:
+            keep = classification["relevance_score"] >= min_score
 
         if tier_filter is not None:
             if classification["relevance_score"] < 3 and tier_filter == 1:
                 if delay > 0:
                     time.sleep(0.5)
                 continue
+
+        if keep:
+            kept_count += 1
+        else:
+            pruned_count += 1
+
+        if not keep:
+            results.append({
+                "arxiv_id": arid,
+                "title": meta.get("title", ""),
+                "authors": meta.get("authors", []),
+                "published": meta.get("published", ""),
+                "categories": meta.get("categories", []),
+                "pdf_url": meta.get("pdf_url", ""),
+                "status": "pruned_irrelevant",
+                "classification": classification,
+                "subsection": subsection,
+            })
+            if delay > 0:
+                time.sleep(delay)
+            continue
 
         tier = classification["relevance_tier"]
         tier_counts[tier] = tier_counts.get(tier, 0) + 1
@@ -435,6 +496,10 @@ def build_triage_report(
         "generated_at": datetime.now().isoformat(),
         "source": arxiv_json_path,
         "total": len(papers),
+        "kept": kept_count,
+        "pruned": pruned_count,
+        "coarse_prune": coarse_prune,
+        "min_score": min_score,
         "tier_counts": tier_counts,
         "subsection_counts": subsection_counts,
         "papers": results,
@@ -460,6 +525,10 @@ def main():
                    help="Comma-separated topic keywords")
     ap.add_argument("--routing-config", "-r",
                    help="JSON routing config (default: built-in ultra-low bit rules)")
+    ap.add_argument("--min-score", type=int, choices=[0, 1, 2, 3], default=0,
+                   help="Keep papers with relevance_score >= min-score (default: 0)")
+    ap.add_argument("--coarse-prune", action=argparse.BooleanOptionalAction, default=True,
+                   help="Enable framework-aware coarse pruning (default: on)")
     ap.add_argument("--delay", type=float, default=1.0,
                    help="Seconds between API calls (default: 1.0, use 0 to disable)")
     ap.add_argument("--verbose", "-v", action="store_true")
@@ -483,18 +552,24 @@ def main():
     print(f"  Delay:   {args.delay}s between API calls")
     if args.tier_filter:
         print(f"  Filter:  Tier {args.tier_filter} only")
+    print(f"  Coarse:  {'on' if args.coarse_prune else 'off'} (min-score={args.min_score})")
 
     report = build_triage_report(
         arxiv_json_path=str(input_path),
         output_path=str(output_path),
         keywords=keywords,
+        routing_config_path=args.routing_config,
         tier_filter=args.tier_filter,
+        min_score=args.min_score,
+        coarse_prune=args.coarse_prune,
         delay=args.delay,
         verbose=args.verbose,
     )
 
     print(f"\n{'='*50}")
     print(f"Total:    {report['total']}")
+    print(f"Kept:     {report['kept']}")
+    print(f"Pruned:   {report['pruned']}")
     for tier, count in report['tier_counts'].items():
         print(f"  {tier}: {count}")
     print(f"\nSubsection distribution:")

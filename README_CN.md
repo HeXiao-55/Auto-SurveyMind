@@ -6,11 +6,25 @@
 
 SurveyMind 自动化了撰写科研综述论文的整个流程：
 
-- **输入**：一个科研子领域（例如："大语言模型的高效推理"）
+- **输入**：一个科研子领域（占位符：`{TOPIC}`）
 - **输出**：包含分类体系、基准对比分析和研究空白识别的结构化综述报告
-- **流程**：多源文献检索 → 论文分类 → 分类体系构建 → 空白分析 → 综述撰写
+- **流程**：课题提炼 → 多源文献检索 → 论文分类 → 分类体系构建 → 空白分析 → 综述撰写
 
-系统自主运行——文献检索、结构化分类的论文分析、证据提取、分类体系构建和学术写作全部自动化。
+CLI 编排器默认在 scope 确认后先执行广覆盖检索阶段：
+
+- `arxiv-discover`：根据 `SURVEY_SCOPE.md` + `--topic-keywords` 广泛检索 arXiv，输出 `gate1_research_lit/arxiv_results.json`
+- `corpus-extract`：在上述 `arxiv_results.json` 基础上做相关性分层和报告生成
+
+默认输出目录采用按 survey 隔离、按 gate 分层：
+
+- `surveys/survey_<topic_slug>/gate0_scope`
+- `surveys/survey_<topic_slug>/gate1_research_lit`
+- `surveys/survey_<topic_slug>/gate2_paper_analysis`
+- `surveys/survey_<topic_slug>/gate3_taxonomy`
+- `surveys/survey_<topic_slug>/gate4_gap_analysis`
+- `surveys/survey_<topic_slug>/gate5_survey_write`
+
+系统自主运行——课题提炼、文献检索、结构化分类的论文分析、证据提取、分类体系构建、空白识别和学术写作全部自动化。
 
 ## 架构
 
@@ -18,15 +32,26 @@ SurveyMind 自动化了撰写科研综述论文的整个流程：
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        SurveyMind 工作流                              │
 │                                                                       │
-│  /survey-pipeline "大语言模型高效推理"                                  │
+│  /survey-pipeline "{TOPIC}"                                      │
 │        │                                                              │
 │        ▼                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐           │
-│  │ 文献检索     │───▶│ 论文分析    │───▶│ 分类体系    │           │
-│  │ & 下载       │    │ & 8维度     │    │ 构建 &      │           │
-│  │ (arXiv/DBLP/│    │ 分类        │    │ 空白识别    │           │
-│  │  Scholar)   │    │             │    │             │           │
-│  └──────────────┘    └──────────────┘    └──────────────┘           │
+│  ┌────────────────┐                                                   │
+│  │ Stage 0        │                                                   │
+│  │ /survey-brainstorm │ ──▶ SURVEY_SCOPE.md                         │
+│  └───────┬────────┘                                                   │
+│          │                                                            │
+│          ▼                                                            │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │  流水线（默认自动继续）                                           │ │
+│  │                                                                │ │
+│  │  Stage 1 ──▶ Stage 2 ──▶ Stage 3 ──▶ Stage 4 ──▶ Stage 5    │ │
+│  │  文献检索   论文分析   分类体系   空白识别     综述撰写         │ │
+│  │   8维度      构建       Gap分析     生成           │          │ │
+│  │    │          │           │           │            │          │ │
+│  │    ▼          ▼           ▼           ▼            ▼          │ │
+│  │  paper_   paper_     taxonomy   gap_        SURVEY_          │ │
+│  │  list    analysis/   .md     analysis.md  DRAFT.md          │ │
+│  └────────────────────────────────────────────────────────────────┘ │
 │          │                   │                    │                  │
 │          ▼                   ▼                    ▼                  │
 │  ┌────────────────────────────────────────────────────────────┐     │
@@ -43,6 +68,8 @@ SurveyMind 自动化了撰写科研综述论文的整个流程：
 
 | 功能 | 描述 |
 |------|------|
+| **自动继续模式** | 首次确认后，流水线自主运行全程——无需反复确认 |
+| **课题提炼** | `/survey-brainstorm` 将模糊主题联合精炼为聚焦的综述范围 |
 | **多源检索** | ArXiv、DBLP、Semantic Scholar、Web——自动查找相关论文 |
 | **结构化论文分析** | 8维度分类：模型类型、方法类别、训练范式、评测重点、硬件协同设计等 |
 | **证据绑定** | 每个分类结论均引用原文——完全可审计 |
@@ -69,27 +96,38 @@ SurveyMind 自动化了撰写科研综述论文的整个流程：
 ### 全流程综述
 
 ```bash
-/survey-pipeline "你的科研子领域"
+/survey-pipeline "{TOPIC}"
 ```
 
-单命令：检索 → 分析 → 分类 → 构建分类体系 → 识别空白 → 撰写综述。
+单命令：头脑风暴 → 检索 → 分析 → 分类 → 构建分类体系 → 识别空白 → 撰写综述。
+
+**自动继续**：默认情况下流水线自动通过所有关卡（`AUTO_PROCEED=true`）。设为 `false` 可在每个关卡暂停等待手动确认。
 
 ### 分步骤使用
 
 | 步骤 | 命令 | 功能 |
 |------|------|------|
+| 0 | `/survey-brainstorm "宽泛主题"` | 将模糊主题精炼为聚焦范围（仅当主题模糊时） |
 | 1 | `/research-lit "子领域"` | 多源文献检索 |
-| 2 | `/paper-analysis "papers/"` | 基于8维度分类体系分析论文 |
-| 3 | `/taxonomy-build` | 从分类结果构建层次化分类体系 |
-| 4 | `/gap-identify` | 识别研究空白和未来方向 |
-| 5 | `/survey-write` | 生成结构化综述文档 |
+| 2 | `/paper-analysis "子领域"` | 基于8维度分类体系分析论文 |
+| 3 | `/taxonomy-build "子领域"` | 从分类结果构建层次化分类体系 |
+| 4 | `/gap-identify "子领域"` | 识别研究空白和未来方向 |
+| 5 | `/survey-write "子领域"` | 生成结构化综述文档 |
+
+### 验证关卡（建议在撰写最终稿前运行）
+
+```bash
+python3 validation/run_validation.py --scope all --strict --retry 2
+```
+
+这将检查引用完整性、基准数据合理性，以及路径级别的保护guardrails。
 
 ## 输出示例
 
 工作流产出结构化综述报告：
 
 ```markdown
-# 综述：大语言模型高效推理
+# 综述：{TOPIC}
 
 ## 1. 引言
 ## 2. 背景
@@ -135,6 +173,9 @@ export GEMINI_API_KEY=your_key   # 论文插图
 # 3. 运行综述
 claude
 > /survey-pipeline "大语言模型高效推理"
+
+# 占位符写法
+> /survey-pipeline "{TOPIC}"
 ```
 
 ## 配置参数
@@ -146,12 +187,21 @@ claude
 | `--sources` | `all` | `arxiv`、`semantic`、`dblp`、`web`、`zotero`、`local` 或 `all` |
 | `--output` | `survey.md` | 输出文件路径 |
 
+**流水线常量**（位于 `skills/survey-pipeline/SKILL.md`）：
+
+| 常量 | 默认值 | 描述 |
+|------|--------|------|
+| `AUTO_PROCEED` | `true` | 自动通过所有关卡，无需用户确认 |
+| `MAX_PAPERS` | `20` | 最多分析的论文数 |
+| `MIN_PAPERS_FOR_TAXONOMY` | `5` | 构建分类体系所需的最少论文数 |
+
 ## 项目结构
 
 ```
 SurveyMind/
 ├── skills/                          # 模块化 skill 组件
 │   ├── survey-pipeline/            # 端到端编排器
+│   ├── survey-brainstorm/          # 课题提炼与范围定义
 │   ├── research-lit/              # 文献检索
 │   ├── paper-analysis/            # 论文分类（8维度）
 │   ├── taxonomy-build/            # 分类体系构建
@@ -159,16 +209,31 @@ SurveyMind/
 │   ├── survey-write/              # 综述生成
 │   └── [其他ML科研技能]           # 可复用组件
 ├── templates/                       # 输出模板
-│   ├── paper_analysis_template.md
-│   ├── taxonomy_template.md
-│   ├── gap_analysis_template.md
-│   └── survey_template.md
 ├── tools/                          # 工具脚本
-│   ├── arxiv_fetch.py             # ArXiv 论文获取
-│   ├── bibtex_fetch.py            # DBLP/CrossRef BibTeX 获取
-│   └── [领域专用工具]             # 分析工具
+├── validation/                     # 验证规则（guardrails）
+├── surveys/                        # 按课题隔离的输出目录
+│   └── survey_<topic_slug>/
+│       ├── gate0_scope/
+│       ├── gate1_research_lit/
+│       ├── gate2_paper_analysis/
+│       ├── gate3_taxonomy/
+│       ├── gate4_gap_analysis/
+│       ├── gate5_survey_write/
+│       ├── survey_trace/
+│       └── validation/
+├── CLAUDE.md                       # Session恢复与流水线状态
 └── README.md
 ```
+
+## Session 恢复
+
+SurveyMind 在不同 session 间维护状态：
+
+- **CLAUDE.md** — 流水线状态、读取顺序、文件组织
+- **WORKLOG.md** — 分阶段执行日志
+- **findings.md** — 各关卡摘要，用于上下文恢复
+
+恢复 session 时，agent 自动读取这些文件来恢复上下文。
 
 ## 故障排除
 
@@ -224,7 +289,7 @@ ls ~/.claude/skills/
 如果论文分析产生空结果：
 
 1. 验证 PDF 下载成功
-2. 检查 `paper_list.json` 是否存在于工作目录
+2. 检查 `surveys/survey_<topic_slug>/gate1_research_lit/paper_list.json` 是否存在
 3. 确保论文格式可读（未加密）
 
 ### 内存问题

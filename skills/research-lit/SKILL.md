@@ -151,7 +151,26 @@ Before searching online, check if the user already has relevant papers locally:
 
 > 📚 If no local papers are found, skip to Step 1. If the user has a comprehensive local collection, the external search can be more targeted (focus on what's missing).
 
-### Step 1: Search (external)
+### Step 1: Check for Existing arxiv_results.json
+
+**Before running fresh search**, check if `arxiv_results.json` already exists:
+
+1. Check `./tpami_tem/arxiv_results.json`
+2. Check `./arxiv_results.json`
+3. Check `../tpami_tem/arxiv_results.json` (parent dir)
+
+**If found AND USE_EXISTING_ARXIV_JSON = true**:
+- Skip fresh arXiv search entirely
+- Report: "Using existing arxiv_results.json (N papers)"
+- The pipeline will use this file directly in batch-triage mode
+- No need to re-search arXiv
+
+**If not found OR USE_EXISTING_ARXIV_JSON = false**:
+- Proceed to fresh search below
+
+---
+
+### Step 1b: Search (external)
 - Use WebSearch to find recent papers on the topic
 - Check arXiv, Semantic Scholar, Google Scholar
 - Focus on papers from last 2 years unless studying foundational work

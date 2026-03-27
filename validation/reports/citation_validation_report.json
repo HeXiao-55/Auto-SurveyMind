@@ -1,0 +1,11 @@
+{
+  "generated_at": "2026-03-27T07:17:20.931806+00:00",
+  "scope": "citations",
+  "passed": true,
+  "strict": true,
+  "retry_config": 1,
+  "retried": 0,
+  "critical_count": 0,
+  "warning_count": 0,
+  "issues": []
+}

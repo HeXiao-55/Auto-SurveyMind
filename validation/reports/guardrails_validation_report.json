@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-03-27T07:17:21.327192+00:00",
+  "scope": "guardrails",
+  "strict": true,
+  "passed": true,
+  "record_baseline": false,
+  "baseline_file": "validation/guardrails_baseline.json",
+  "changed_files_total": 47,
+  "changed_files_considered": 0,
+  "critical_count": 0,
+  "warning_count": 0,
+  "issues": []
+}

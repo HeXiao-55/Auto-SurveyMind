@@ -1,243 +1,390 @@
 # SurveyMind: Automated Research Survey Agent
 
-> An autonomous AI agent framework for conducting comprehensive literature surveys in any research subfield. From topic specification to structured survey report — fully automated.
+> An autonomous AI agent framework for conducting comprehensive literature surveys in any research subfield. From fuzzy idea to structured survey report — fully automated.
 
-## Overview
+---
 
-SurveyMind automates the entire process of writing a research survey paper:
+## Two Entry Points
 
-- **Input**: A research subfield (e.g., "efficient inference for large language models")
-- **Output**: A structured survey report with taxonomy, benchmark analysis, and research gap identification
-- **Process**: Multi-source literature search → paper classification → taxonomy construction → gap analysis → survey writing
+SurveyMind supports two parallel workflows:
 
-The system runs autonomously — literature retrieval, paper analysis with structured classification, evidence extraction, taxonomy construction, and academic writing are all automated.
+| Entry Point | Command | Best For |
+|-------------|---------|----------|
+| **Skill (agentic)** | `/survey-pipeline "{TOPIC}"` | Full autonomous pipeline with LLM-powered reasoning at each stage |
+| **CLI (scriptable)** | `python3 tools/surveymind_run.py --stage all` | Reproducible batch execution, CI/CD integration |
 
-## Architecture
+Both produce the same outputs. The skill-based pipeline invokes LLM reasoning between stages; the CLI runs tools directly.
+
+## Output Layout (Default)
+
+All generated artifacts are stored under a survey-specific root:
+
+`surveys/survey_<topic_slug>/`
+
+With gate-based subfolders:
+
+- `gate0_scope`
+- `gate1_research_lit`
+- `gate2_paper_analysis`
+- `gate3_taxonomy`
+- `gate4_gap_analysis`
+- `gate5_survey_write`
+
+---
+
+## Complete Pipeline Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SurveyMind Pipeline                             │
-│                                                                       │
-│  /survey-pipeline "efficient LLM inference"                          │
-│        │                                                              │
-│        ▼                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐           │
-│  │ Paper Search │───▶│ Paper       │───▶│ Taxonomy     │           │
-│  │ & Download   │    │ Analysis &  │    │ Build &      │           │
-│  │ (arXiv/DBLP/ │    │ Classification│   │ Gap ID       │           │
-│  │  Scholar)    │    │ (8-dim)     │    │              │           │
-│  └──────────────┘    └──────────────┘    └──────────────┘           │
-│          │                   │                    │                  │
-│          ▼                   ▼                    ▼                  │
-│  ┌────────────────────────────────────────────────────────────┐     │
-│  │              Structured Survey Report                        │     │
-│  │  • Hierarchical taxonomy by methodology & application       │     │
-│  │  • Benchmark comparison tables (accuracy, efficiency)       │     │
-│  │  • Research gaps & future directions                        │     │
-│  │  • Evidence binding (every claim cites original paper)      │     │
-│  └────────────────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────────┘
+Stage 0 (Skill) ─────────────────────────────────────────────────────────────
+  /survey-brainstorm "fuzzy idea"
+        │
+        │  tools/arxiv_fetch.py search ──▶ field landscape exploration
+        │  WebSearch ──▶ recent trends & existing surveys
+        │
+        ▼
+  SURVEY_SCOPE.md  (refined topic + keywords + section outline)
+
+Stage 1 ──────────────────────────────────────────────────────────────────────
+  /research-lit "refined subfield"   [Skill]
+        │
+        │  tools/arxiv_fetch.py search ──▶ arXiv paper list
+        │  WebSearch / Semantic Scholar ──▶ additional references
+        │  MCP: Zotero / Obsidian ──▶ local library integration
+        │
+        ▼
+  gate1_research_lit/paper_list.json  (machine-readable paper inventory)
+  gate1_research_lit/papers/*.pdf     (downloaded PDFs, optional)
+
+Stage 2 ──────────────────────────────────────────────────────────────────────
+  /paper-analysis "topic"   [Skill]
+        │
+        │  LLM reads each paper PDF
+        │  Extracts 8-dim / 12-field classification + evidence snippets
+        │
+        ▼
+  gate2_paper_analysis/*_analysis.md  (per-paper structured analysis)
+
+  ── OR, for bulk API-level coverage check ──
+  python3 tools/surveymind_run.py --stage paper-analysis   [CLI]
+        │
+        │  tools/batch_paper_triage.py  (12-field via arXiv API, no deep PDF)
+        │
+        ▼
+  gate2_paper_analysis/all_papers_triage.json  (12-field triage for all papers in gate1 paper_list.json)
+
+Stage 3 ──────────────────────────────────────────────────────────────────────
+  /taxonomy-build "topic"   [Skill]
+        │
+        │  Reads gate2_paper_analysis/*.md
+        │  Groups by method category, bit-width, training paradigm
+        │
+        ▼
+  gate3_taxonomy/taxonomy.md  (hierarchical classification structure)
+
+Stage 4 ──────────────────────────────────────────────────────────────────────
+  /gap-identify "topic"   [Skill]
+        │
+        │  Reads gate3_taxonomy/taxonomy.md
+        │  Identifies: unexplored combinations, benchmark gaps, method gaps
+        │
+        ▼
+  gate4_gap_analysis/gap_analysis.md  (research gaps ranked by severity + confidence)
+
+Stage 5 ──────────────────────────────────────────────────────────────────────
+  /survey-write "topic"   [Skill]
+        │
+        │  Reads gate3_taxonomy/taxonomy.md + gate4_gap_analysis/gap_analysis.md
+        │  Synthesizes into academic survey structure
+        │
+        ▼
+  gate5_survey_write/SURVEY_DRAFT.md  (publication-ready survey document)
+
+Stage 6 ──────────────────────────────────────────────────────────────────────
+  python3 tools/surveymind_run.py --stage corpus-extract   [CLI]
+        │
+        │  tools/arxiv_json_extractor.py
+        │  Parses arXiv JSON (e.g. arxiv_results.json) ──▶ corpus_report.md
+        │  Tier classification: Tier 1 (core), Tier 2 (high), Tier 3 (related), Tier 4 (peripheral)
+        │
+        ▼
+  corpus_report.md  (tiered corpus overview)
+
+Stage 7 (Full CLI Orchestration) ──────────────────────────────────────────
+  python3 tools/surveymind_run.py --stage all   [CLI orchestrator]
+        │
+        ├──> brainstorm        ──▶ tools/surveymind_run.py (in-process) ──▶ gate0_scope/SURVEY_SCOPE.md
+  ├──> arxiv-discover    ──▶ tools/arxiv_discover.py ──▶ gate1_research_lit/arxiv_results.json
+        ├──> corpus-extract     ──▶ tools/arxiv_json_extractor.py ──▶ gate1_research_lit/corpus_report.md
+        ├──> batch-triage      ──▶ tools/batch_paper_triage.py ──▶ gate2_paper_analysis/all_papers_triage.json
+        ├──> paper-analysis    ──▶ coverage check vs gate1_research_lit/paper_list.json
+        ├──> trace-init       ──▶ tools/survey_trace_init.py ──▶ survey_trace/ directory tree
+        ├──> convert-12field  ──▶ tools/convert_to_12field.py ──▶ upgraded 12-field analyses
+        ├──> trace-sync       ──▶ tools/survey_trace_sync.py ──▶ survey_trace/**/SUBSECTION_RECORD.md
+        └──> validate          ──▶ validation/run_validation.py ──▶ validation report
 ```
+
+---
+
+## Tool & Skill Reference
+
+### Skills (Agentic — LLM-powered stages)
+
+| Skill | Stage | Input | Output |
+|-------|-------|-------|--------|
+| `/survey-brainstorm` | 0 | `{TOPIC_DESCRIPTION}` | `surveys/survey_<slug>/gate0_scope/SURVEY_SCOPE.md` |
+| `/research-lit` | 1 | `{TOPIC}` | `surveys/survey_<slug>/gate1_research_lit/paper_list.json`, `surveys/survey_<slug>/gate1_research_lit/papers/*.pdf` |
+| `/paper-analysis` | 2 | `{TOPIC}` / `paper_list` | `surveys/survey_<slug>/gate2_paper_analysis/*_analysis.md` |
+| `/taxonomy-build` | 3 | `gate2_paper_analysis/` | `surveys/survey_<slug>/gate3_taxonomy/taxonomy.md` |
+| `/gap-identify` | 4 | `gate3_taxonomy/taxonomy.md` | `surveys/survey_<slug>/gate4_gap_analysis/gap_analysis.md` |
+| `/survey-write` | 5 | `gate3_taxonomy/taxonomy.md` + `gate4_gap_analysis/gap_analysis.md` | `surveys/survey_<slug>/gate5_survey_write/SURVEY_DRAFT.md` |
+
+### Tools (CLI — programmatic stages)
+
+| Tool | What It Does | Input | Output |
+|------|-------------|-------|--------|
+| `tools/arxiv_fetch.py search "query" --max N` | Search arXiv API | query | JSON paper list |
+| `tools/arxiv_fetch.py download <id> --dir papers/` | Download PDF by arXiv ID | arXiv ID | `papers/<id>.pdf` |
+| `tools/arxiv_json_extractor.py` | Parse arXiv JSON → tier classification | `arxiv_results.json` | `corpus_report.md` |
+| `tools/batch_paper_triage.py` | 12-field triage of ALL papers via arXiv API | `arxiv_results.json` | `all_papers_triage.json` |
+| `tools/paper_triage.py <arxiv_id>` | Single-paper 12-field classification | arXiv ID | printed 12-field + subsection |
+| `tools/convert_to_12field.py` | Upgrade 8-field → 12-field + POST_TASK_QC | `gate2_paper_analysis/*.md` | updated analyses |
+| `tools/survey_trace_init.py` | Parse LaTeX → create survey_trace/ tree | survey `.tex` | `survey_trace/13 sections/` |
+| `tools/survey_trace_sync.py` | Sync analyses → survey_trace records | `gate2_paper_analysis/` | `survey_trace/**/SUBSECTION_RECORD.md` |
+| `tools/generate_survey_mindmap.py` | Generate mindmap from survey_trace | `survey_trace/` | `mindmap/survey_mindmap.pdf` |
+| `validation/run_validation.py` | Citation, benchmark, guardrail validation | survey files | validation report |
+
+---
+
+## surveymind_run.py Stages
+
+`tools/surveymind_run.py` exposes 9 executable stages:
+
+```
+python3 tools/surveymind_run.py --stage <name>
+```
+
+| Stage | Tool(s) Called | Description |
+|-------|---------------|-------------|
+| `brainstorm` | in-process | Generate `SURVEY_SCOPE.md` from `--scope-topic` + `--topic-keywords` |
+| `arxiv-discover` | `arxiv_discover.py` | Broad-recall arXiv retrieval after scope confirmation, outputs gate1 `arxiv_results.json` |
+| `corpus-extract` | `arxiv_json_extractor.py` | Parse `arxiv_results.json` → tiered corpus report |
+| `paper-analysis` | `batch_paper_triage.py` (API) | Check coverage of `gate1_research_lit/paper_list.json` vs `gate2_paper_analysis/` |
+| `batch-triage` | `batch_paper_triage.py` | 12-field triage of ALL papers in `arxiv_results.json` via arXiv API |
+| `trace-init` | `survey_trace_init.py` | Parse LaTeX → create `survey_trace/` directory tree |
+| `convert-12field` | `convert_to_12field.py` | Upgrade existing analyses from 8-field → 12-field format |
+| `trace-sync` | `survey_trace_sync.py` | Sync paper analyses → `survey_trace/` subsection records |
+| `validate` | `validation/run_validation.py` | Citation integrity, benchmark sanity, guardrail checks |
+| `all` | all above | Run full pipeline in dependency order |
+
+**CLI Examples:**
+```bash
+# Placeholder-first usage
+python3 tools/surveymind_run.py --stage brainstorm \
+  --scope-topic "{TOPIC_DESCRIPTION}" \
+  --survey-name "{SURVEY_NAME}" \
+  --topic-keywords "{KEYWORDS}"
+
+# Full CLI pipeline
+python3 tools/surveymind_run.py --stage all \
+  --survey-name "{SURVEY_NAME}" \
+  --arxiv-json "{ARXIV_JSON}" \
+  --topic-keywords "{KEYWORDS}"
+
+# Concrete example
+python3 tools/surveymind_run.py --stage all \
+  --survey-name "llm_reasoning_compression" \
+  --topic-keywords "compression,quantization,reasoning,LLM"
+
+# Individual stages
+python3 tools/surveymind_run.py --stage corpus-extract
+python3 tools/surveymind_run.py --stage arxiv-discover
+python3 tools/surveymind_run.py --stage batch-triage --verbose
+python3 tools/surveymind_run.py --stage trace-sync --verbose
+```
+
+---
+
+## Quick Start
+
+```bash
+# Option A: Skill-based (recommended for new surveys)
+claude
+> /survey-brainstorm "{TOPIC_DESCRIPTION}"
+> /survey-pipeline "{TOPIC}"
+
+# Option B: CLI-based (reproducible, scriptable)
+cd SurveyMind
+python3 tools/surveymind_run.py --stage brainstorm \
+  --scope-topic "{TOPIC_DESCRIPTION}" \
+  --survey-name "{SURVEY_NAME}" \
+  --topic-keywords "{KEYWORDS}"
+python3 tools/surveymind_run.py --stage all \
+  --survey-name "{SURVEY_NAME}" \
+  --arxiv-json "{ARXIV_JSON}" \
+  --topic-keywords "{KEYWORDS}"
+```
+
+---
+
+## Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           SurveyMind Pipeline                              │
+│                                                                           │
+│  Skill-based: /survey-pipeline "topic"                                    │
+│    Stage 0 ──▶ Stage 1 ──▶ Stage 2 ──▶ Stage 3 ──▶ Stage 4 ──▶ Stage 5 │
+│    Brainstorm   Search    Analysis   Taxonomy   Gap-ID    Survey-Write    │
+│       │          │          │          │          │          │          │
+│       ▼          ▼          ▼          ▼          ▼          ▼          │
+│  SURVEY_    paper_     paper_     taxonomy  gap_      SURVEY_          │
+│  SCOPE.md   list.json  analysis/   .md     analysis.md  DRAFT.md      │
+│                                                                           │
+│  CLI-based: python3 tools/surveymind_run.py --stage all                  │
+│    brainstorm ──▶ corpus-extract ──▶ batch-triage ──▶ paper-analysis     │
+│         │              │                │                 │             │
+│    SURVEY_       corpus_         all_papers_        coverage            │
+│    SCOPE.md      report.md       triage.json         check              │
+│                                                                           │
+│         │              │                │                 │             │
+│         ▼              ▼                ▼                 ▼             │
+│    trace-init ──▶ convert-12field ──▶ trace-sync ──▶ validate            │
+│         │              │                │                 │             │
+│    survey_trace/   upgraded          survey_trace/     validation         │
+│                    analyses         /**/SUBSECTION_      report         │
+│                                    RECORD.md                            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
+| **Auto-Proceed Mode** | Once confirmed, the pipeline runs autonomously through all stages — no repeated user confirmation needed |
+| **Topic Refinement** | `/survey-brainstorm` jointly refines fuzzy topics into focused survey scopes |
 | **Multi-source Search** | ArXiv, DBLP, Semantic Scholar, web — automatically find relevant papers |
-| **Structured Paper Analysis** | 8-dimension classification: model type, method category, training paradigm, evaluation focus, hardware co-design, etc. |
+| **Structured Paper Analysis** | 12-field classification: model type, method category, training paradigm, evaluation focus, hardware co-design, quantization bit scope, etc. |
 | **Evidence Binding** | Every classification cites original paper text — fully auditable |
 | **Auto Taxonomy** | Hierarchical taxonomy built from classified papers (method → submethod → specific technique) |
 | **Gap Analysis** | Identifies unexplored combinations, under-explored settings, benchmark gaps |
 | **Benchmark Synthesis** | Extracts and normalizes numbers across papers into unified comparison tables |
-| **Survey Generation** | Produces publication-ready survey document with proper academic structure |
+| **survey_trace** | Per-section evidence directory for traceable survey construction |
+| **Validation Gate** | Automated citation integrity and benchmark sanity checks before final output |
 
-## Taxonomy System
+---
 
-Papers are classified across 8 structured dimensions:
+## Taxonomy System — 12 Fields
 
-| Dimension | Example Categories |
-|-----------|-------------------|
-| **Model Type** | LLM, MLLM, MoE-LLM, SLM, VLM |
-| **Method Category** | Representation Enhancement, Sparsity Exploitation, Knowledge Transfer, Hardware Co-design, Analysis |
-| **Specific Method** | Learnable Scaling, Structured Sparsity, Distillation, Rotation, KV-specific Quantization |
-| **Training Paradigm** | QAT, PTQ, Hybrid, From-Scratch Low-bit Pretraining |
-| **Evaluation Focus** | Perplexity, Downstream Accuracy, End-to-end Latency, Energy Efficiency |
-| **Hardware Co-design** | CPU Kernel, GPU Mixed-precision, PIM/CIM Architecture, ASIC-friendly |
+Papers are classified across 12 structured fields:
 
-## Workflows
+| # | Field | Description |
+|---|-------|-------------|
+| 1 | Model Type | LLM, MLLM, MoE-LLM, SLM, VLM |
+| 2 | Method Category | Representation Enhancement, Sparsity Exploitation, Knowledge Transfer, Hardware Co-design |
+| 3 | Specific Method | Learnable Scaling, Structured Sparsity, Distillation, Rotation, KV-specific Quantization |
+| 4 | Training Paradigm | QAT, PTQ, Hybrid, From-Scratch Low-bit Pretraining |
+| 5 | Core Challenge | Outlier sensitivity, representation capacity, gradient flow disruption |
+| 6 | Evaluation Focus | Perplexity, Downstream Accuracy, End-to-end Latency, Energy Efficiency |
+| 7 | Hardware Co-design | CPU Kernel, GPU Mixed-precision, PIM/CIM Architecture, ASIC-friendly |
+| 8 | Summary | Paper summary + survey contribution mapping |
+| 9 | Quantization Bit Scope | 1-bit, 1.58-bit, 2-bit, 3-bit, 4-bit |
+| 10 | General Method Type | Rotation/Transform, Reconstruction-based, Sparsity-aware, Learnable threshold |
+| 11 | Core Challenge Addressed | Which of the 3 core challenges this method addresses |
+| 12 | Ultra-low-bit Relevance Summary | Relevance to ultra-low bit (<2-bit) survey scope |
 
-### Full Survey Pipeline
-
-```bash
-/survey-pipeline "your research subfield"
-```
-
-Single command: search → analyze → classify → build taxonomy → identify gaps → write survey.
-
-### Step-by-Step
-
-| Step | Command | What it does |
-|------|---------|--------------|
-| 1 | `/research-lit "subfield"` | Multi-source literature search |
-| 2 | `/paper-analysis "papers/"` | Analyze papers with 8-dimension taxonomy |
-| 3 | `/taxonomy-build` | Build hierarchical taxonomy from classified papers |
-| 4 | `/gap-identify` | Identify research gaps and future directions |
-| 5 | `/survey-write` | Generate structured survey document |
-
-## Output Example
-
-The pipeline produces a structured survey report:
-
-```markdown
-# Survey: Efficient LLM Inference
-
-## 1. Introduction
-## 2. Background
-
-## 3. Taxonomy
-
-### 3.1 Quantization Methods
-#### 3.1.1 Post-Training Quantization (PTQ)
-- **1-bit**: QAT-LLM, BiLLM, ...
-- **1.58-bit**: TinyChat, ...
-#### 3.1.2 Quantization-Aware Training (QAT)
-- ...
-
-### 3.2 Pruning Methods
-### 3.3 Knowledge Distillation
-
-## 4. Benchmark Comparison
-
-| Method | Type | WikiText-2 PPL | ARC | Latency | Memory |
-|--------|------|----------------|-----|---------|--------|
-| QAT-LLM 1-bit | QAT | 12.3 | 45.2 | 1.0x | 0.9GB |
-| TinyChat 1.58b | PTQ | 13.1 | 43.8 | 0.9x | 0.8GB |
-
-## 5. Research Gaps
-
-1. **Unexplored combination**: Sub-2-bit quantization + speculative decoding
-2. **Benchmark gap**: No unified benchmark covering accuracy + efficiency + energy
-3. **Methodology gap**: Limited analysis of outliers in extreme quantization
-```
-
-## Quick Start
-
-```bash
-# 1. Clone and install (or copy locally)
-git clone <REPO_URL>  # or: cp -r /path/to/SurveyMind .
-cd SurveyMind
-./install.sh
-
-# 2. Configure API keys (optional)
-export ARXIV_API_KEY=your_key    # for enhanced search
-export GEMINI_API_KEY=your_key   # for paper illustration
-
-# 3. Run a survey
-claude
-> /survey-pipeline "efficient LLM inference"
-```
-
-## Configuration
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--topic` | required | Research subfield to survey |
-| `--depth` | `standard` | `quick` (20 papers) / `standard` (50) / `comprehensive` (100+) |
-| `--sources` | `all` | `arxiv`, `semantic`, `dblp`, `web`, `zotero`, `local`, or `all` |
-| `--output` | `survey.md` | Output file path |
+---
 
 ## Project Structure
 
 ```
 SurveyMind/
 ├── skills/                          # Modular skill components
-│   ├── survey-pipeline/            # End-to-end orchestrator
+│   ├── survey-pipeline/           # End-to-end orchestrator skill
+│   ├── survey-brainstorm/          # Topic refinement & scope definition (NEW)
 │   ├── research-lit/              # Literature search
-│   ├── paper-analysis/            # Paper classification (8-dim taxonomy)
-│   ├── taxonomy-build/            # Taxonomy construction
-│   ├── gap-identify/              # Research gap analysis
-│   ├── survey-write/              # Survey generation
-│   └── [other ML research skills] # Reusable components
-├── templates/                       # Output templates
-│   ├── paper_analysis_template.md
-│   ├── taxonomy_template.md
-│   ├── gap_analysis_template.md
-│   └── survey_template.md
-├── tools/                          # Utility scripts
-│   ├── arxiv_fetch.py             # ArXiv paper retrieval
-│   ├── bibtex_fetch.py            # BibTeX from DBLP/CrossRef
-│   └── [domain-specific tools]    # Analysis tools
+│   ├── paper-analysis/            # Paper classification (12-dim framework)
+│   ├── taxonomy-build/           # Taxonomy construction
+│   ├── gap-identify/             # Research gap analysis
+│   ├── survey-write/             # Survey generation
+│   └── [other ML research skills]
+├── tools/                          # CLI utility scripts
+│   ├── surveymind_run.py         # Pipeline orchestrator (8 stages)
+│   ├── arxiv_fetch.py            # arXiv search & download
+│   ├── arxiv_json_extractor.py   # arXiv JSON → corpus report
+│   ├── batch_paper_triage.py     # Bulk 12-field triage via API
+│   ├── paper_triage.py           # Single-paper 12-field triage
+│   ├── convert_to_12field.py     # 8-field → 12-field upgrade
+│   ├── survey_trace_init.py      # LaTeX → survey_trace/ tree
+│   ├── survey_trace_sync.py      # Analyses → survey_trace records
+│   ├── generate_survey_mindmap.py # Mindmap generation
+│   └── benchmark_extractor.py    # Extract benchmarks from papers
+├── templates/                      # Analysis & record templates
+├── validation/                     # Validation rules (guardrails)
+├── surveys/                        # Per-survey isolated outputs
+│   └── survey_<topic_slug>/
+│       ├── gate0_scope/
+│       ├── gate1_research_lit/
+│       ├── gate2_paper_analysis/
+│       ├── gate3_taxonomy/
+│       ├── gate4_gap_analysis/
+│       ├── gate5_survey_write/
+│       ├── survey_trace/
+│       └── validation/
+├── WORKLOG.md                      # Optional global execution log
 └── README.md
 ```
+
+---
+
+## Session Recovery
+
+SurveyMind maintains state across sessions:
+
+- **CLAUDE.md** — Pipeline status, reading order, file organization
+- **WORKLOG.md** — Phase-by-phase execution log
+- **findings.md** — Gate-by-gate summaries for context recovery
+
+When resuming a session, the agent automatically reads these files to restore context.
+
+---
 
 ## Troubleshooting
 
 ### SSL Certificate Errors (macOS)
-
-If you encounter SSL certificate errors when downloading from arXiv:
-
 ```bash
-# Option 1: Install certificates via Homebrew
 brew install curl-ca-bundle
-
-# Option 2: Run Python's certificate installer
 /Applications/Python\ 3.x/Install\ Certificates.command
-
-# Option 3: Install certifi package
 pip install certifi
-/Applications/Python\ 3.x/Install\ Certificates.command
 ```
 
 ### arXiv Download Timeout
-
-If downloads are slow or timing out:
-
 1. Check your internet connection
 2. Try using a proxy or VPN
-3. Reduce the number of papers in `--depth quick` mode
-4. Use local papers by setting `--sources local`
+3. Reduce the number of papers
+4. Use local papers: `--sources local`
 
 ### No Papers Found
-
-If the search returns no papers:
-
-1. Try broadening the search topic (e.g., "machine learning" instead of "specific technique")
+1. Broaden the search topic
 2. Check spelling and keyword variations
-3. Ensure API keys are set for enhanced search
-4. Try different sources: `--sources all`
+3. Ensure API keys are set
+4. Try: `--sources all`
 
 ### Skill Not Found
-
-If `/survey-pipeline` command is not recognized:
-
 ```bash
-# Re-run installation
-cd SurveyMind
-./install.sh
-
-# Verify skills are installed
+cd SurveyMind && ./install.sh
 ls ~/.claude/skills/
 ```
 
 ### Analysis Results Empty
-
-If paper analysis produces empty results:
-
 1. Verify PDFs were downloaded successfully
-2. Check that `paper_list.json` exists in the working directory
-3. Ensure papers are in readable format (not password-protected)
+2. Check that `surveys/survey_<slug>/gate1_research_lit/paper_list.json` exists
+3. Ensure papers are not password-protected
 
-### Memory Issues
-
-For large surveys (100+ papers):
-
-1. Use `--depth standard` instead of `--depth comprehensive`
-2. Process papers in batches
-3. Clear intermediate files between runs
+---
 
 ## Citation
-
-If this tool helped your research, please cite:
 
 ```bibtex
 @software{surveymind,
@@ -250,4 +397,4 @@ If this tool helped your research, please cite:
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.

@@ -12,43 +12,107 @@ End-to-end automated survey construction pipeline that goes from a research topi
 ## Overview
 
 ```
-/research-lit → /paper-analysis → /taxonomy-build → /gap-identify → /survey-write
+/survey-brainstorm → /research-lit → /paper-analysis → /taxonomy-build → /gap-identify → /survey-write
 ```
 
 **Pipeline Flow:**
 ```
-Research Literature → Paper Analysis → Taxonomy Building → Gap Identification → Survey Writing
-       ↓                    ↓                  ↓                ↓                ↓
-  paper_list.json     paper_analysis/       taxonomy.md     gap_analysis.md   SURVEY_DRAFT.md
+Brainstorm & Scope → Research Literature → Paper Analysis → Taxonomy Building → Gap Identification → Survey Writing
+       ↓                    ↓                  ↓                ↓                ↓                ↓
+  SURVEY_SCOPE.md     paper_list.json   paper_analysis/     taxonomy.md     gap_analysis.md   SURVEY_DRAFT.md
 ```
 
 ## Arguments
 
-**$ARGUMENTS**: The research subfield to survey (e.g., "Efficient LLM inference", "Model quantization")
+**$ARGUMENTS**: The research subfield to survey (e.g., "Efficient LLM inference", "Model quantization"). If the idea is fuzzy or too broad, the pipeline will invoke `/survey-brainstorm` first to refine the scope.
 
 ## Constants
 
+- **AUTO_PROCEED = true** — When true, auto-continue through all gates without waiting for confirmation. Set to false to pause at each gate.
+- **USE_EXISTING_ARXIV_JSON = true** — When true, check for existing arxiv_results.json before fresh search. If found, use batch-triage to process all papers.
 - **MAX_PAPERS = 20** — Maximum number of papers to analyze
 - **PAPER_DOWNLOAD = true** — Download PDFs for deeper analysis
 - **MIN_PAPERS_FOR_TAXONOMY = 5** — Minimum papers needed to build taxonomy
 
-## Pipeline Stages
+## Stage 0: Brainstorm & Topic Refinement (`/survey-brainstorm`)
 
-### Stage 1: Research Literature (`/research-lit`)
+**Command**: `/survey-brainstorm "$ARGUMENTS"`
 
-**Command**: `/research-lit "$ARGUMENTS — arxiv download: true"`
+**When to run**: If the user's idea is fuzzy (e.g., "I want to write a survey about LLM compression") rather than a specific subfield, invoke this stage FIRST to jointly refine the scope.
 
 **What happens:**
-1. Searches for papers on the topic via arXiv API
-2. Downloads top relevant PDFs
-3. Returns structured paper list with metadata
+1. Explores the broad field via arXiv search and web search
+2. Presents sub-directions to the user
+3. Asks clarifying questions (bit-width focus, model types, method scope, target venue)
+4. Outputs `SURVEY_SCOPE.md` with refined topic and parameters
 
-**Output:**
+**Output:** `SURVEY_SCOPE.md` — refined survey specification
+
+**🚦 Gate 0 — Scope confirmation:**
+After Stage 0, present the refined scope. If `AUTO_PROCEED=true`, auto-continue. Otherwise ask for confirmation:
+```
+📋 Refined Survey Scope:
+
+Topic: Ultra-low bit PTQ & QAT for Edge-deployable Decoder-only LLMs
+Keywords: quantization, LLM, binary, ternary, 1-bit, 1.58-bit, post-training
+Bit-width: <2-bit focus
+Venue: TPAMI
+
+[Auto] Proceeding to literature search... (AUTO_PROCEED=true)
+```
+
+## Pipeline Stages
+
+### Stage 1: Research Literature (`/research-lit` OR batch-triage)
+
+**Logic** (runs automatically when skill is invoked):
+
+1. **Check for existing arxiv_results.json**:
+   - Check `./arxiv_results.json`
+   - Check `./tpami_tem/arxiv_results.json`
+   - Check `../tpami_tem/arxiv_results.json` (parent dir)
+
+2. **If arxiv_results.json exists AND USE_EXISTING_ARXIV_JSON=true**:
+   - Run batch-triage via CLI:
+     ```bash
+     python3 tools/surveymind_run.py --stage batch-triage --arxiv-json <path>
+     ```
+   - This processes ALL papers in arxiv_results.json (up to 170 papers)
+   - Output: `corpus_report.json`, `corpus_report.md` with tier classification
+
+3. **If arxiv_results.json NOT found**:
+   - Run fresh search: `/research-lit "$ARGUMENTS — arxiv download: true"`
+   - This searches arXiv API and creates paper_list.json
+
+**What happens (batch-triage mode):**
+1. Reads arxiv_results.json (all papers)
+2. Calls arXiv API for metadata/enrichment for each paper
+3. Applies 12-field classification
+4. Outputs tiered corpus report
+
+**Output (batch-triage mode):**
+- `corpus_report.json` — Machine-readable corpus with tier 1-4 classification
+- `corpus_report.md` — Human-readable tier summary
+
+**Output (fresh search mode):**
 - `paper_list.json` — Machine-readable paper list with paper_id, title, authors, year, venue, arXiv ID, and pdf_path
 - Saved PDFs in `papers/` or `literature/`
 
 **🚦 Gate 1 — Confirmation:**
-After Stage 1, present paper count and ask for confirmation to proceed:
+After Stage 1, present paper count. If `AUTO_PROCEED=true`, auto-continue. Otherwise ask for confirmation:
+
+**Batch-triage mode:**
+```
+📚 Using existing arxiv_results.json: N papers
+├── Tier 1 (core): X papers
+├── Tier 2 (high relevance): X papers
+├── Tier 3 (related): X papers
+└── Tier 4 (peripheral): X papers
+
+[Auto] Proceeding to paper analysis... (AUTO_PROCEED=true)
+```
+
+**Fresh search mode:**
 ```
 📚 Found N papers on "$ARGUMENTS"
 
@@ -57,7 +121,12 @@ Top papers:
 2. [Title] - [Authors] ([Year])
 ...
 
-Proceed to paper analysis?
+[Auto] Proceeding to paper analysis... (AUTO_PROCEED=true)
+```
+
+When auto-proceeding, also append to `findings.md`:
+```markdown
+- [Gate 1] research-lit complete: N papers for "$ARGUMENTS" (source: batch-triage/fresh-search)
 ```
 
 ### Stage 2: Paper Analysis (`/paper-analysis`)
@@ -82,7 +151,7 @@ Stage 1 output (paper_list.json) ──▶ Stage 2 input
 - Files: `{paper_id}_analysis.md` for each paper
 
 **🚦 Gate 2 — Review:**
-After Stage 2, report analysis completion:
+After Stage 2, report analysis completion. If `AUTO_PROCEED=true`, auto-continue:
 ```
 ✅ Paper analysis complete: N papers analyzed
 📁 Results saved to: paper_analysis_results/
@@ -93,6 +162,13 @@ Classification summary:
 - QAT methods: N
 - PTQ methods: N
 ...
+
+[Auto] Proceeding to taxonomy building... (AUTO_PROCEED=true)
+```
+
+When auto-proceeding, also append to `findings.md`:
+```markdown
+- [Gate 2] paper-analysis complete: N papers classified across X categories
 ```
 
 ### Stage 3: Taxonomy Building (`/taxonomy-build`)
@@ -108,7 +184,7 @@ Classification summary:
 - `taxonomy.md` — Hierarchical classification structure
 
 **🚦 Gate 3 — Review:**
-After Stage 3, present taxonomy summary:
+After Stage 3, present taxonomy summary. If `AUTO_PROCEED=true`, auto-continue:
 ```
 📊 Taxonomy built successfully
 
@@ -124,6 +200,13 @@ Coverage:
 - Method Categories: N
 - Submethods: N
 - Most common: [Method] (N papers)
+
+[Auto] Proceeding to gap identification... (AUTO_PROCEED=true)
+```
+
+When auto-proceeding, also append to `findings.md`:
+```markdown
+- [Gate 3] taxonomy built: X categories, Y submethods identified
 ```
 
 ### Stage 4: Gap Identification (`/gap-identify`)
@@ -139,7 +222,7 @@ Coverage:
 - `gap_analysis.md` — Research gaps and opportunities
 
 **🚦 Gate 4 — Review:**
-After Stage 4, present gap summary:
+After Stage 4, present gap summary. If `AUTO_PROCEED=true`, auto-continue:
 ```
 🔍 Gap analysis complete
 
@@ -153,6 +236,13 @@ Gap Summary:
 Top Research Opportunities:
 1. [Opportunity 1] (Impact: High, Difficulty: Med)
 2. [Opportunity 2] (Impact: Med, Difficulty: High)
+
+[Auto] Proceeding to survey writing... (AUTO_PROCEED=true)
+```
+
+When auto-proceeding, also append to `findings.md`:
+```markdown
+- [Gate 4] gap analysis complete: Z gaps identified, top opportunity: [description]
 ```
 
 ### Stage 5: Survey Writing (`/survey-write`)
@@ -174,6 +264,7 @@ After Stage 5, present completion summary:
 🎉 Survey pipeline complete!
 
 📄 Output files:
+├── SURVEY_SCOPE.md (refined survey specification)
 ├── paper_analysis_results/ (N analysis files)
 ├── taxonomy.md
 ├── gap_analysis.md
@@ -194,11 +285,13 @@ Next steps:
 
 ## Key Rules
 
+- **Fuzzy topic detection**: If `$ARGUMENTS` is too broad or vague (e.g., "survey on AI", "写综述", just "quantization"), invoke `/survey-brainstorm` FIRST to refine the scope before proceeding to Stage 1.
 - **Sequential execution**: Each stage depends on the previous
-- **Human checkpoints**: Pause at each gate for user review
+- **Auto-proceed by default**: When `AUTO_PROCEED=true`, automatically continue through gates (default behavior)
 - **Graceful degradation**: If a stage finds few papers, continue with warning
 - **Evidence binding**: All claims must be traceable to original papers
 - **Machine-readable outputs**: All intermediate files must be parseable by downstream stages
+- **Findings tracking**: At each gate, append a one-line summary to `findings.md` for session recovery
 
 ## Error Handling
 
@@ -209,9 +302,10 @@ Next steps:
 ## Integration with Existing Skills
 
 The pipeline chains these skills:
+0. `/survey-brainstorm` — Topic refinement & scope definition (Stage 0, pre-survey)
 1. `/research-lit` — Paper discovery
-2. `/paper-analysis` — Paper analysis (NEW)
-3. `/taxonomy-build` — Taxonomy construction (NEW)
+2. `/paper-analysis` — Paper analysis
+3. `/taxonomy-build` — Taxonomy construction
 4. `/gap-identify` — Gap identification (NEW)
 5. `/survey-write` — Survey generation (NEW)
 
