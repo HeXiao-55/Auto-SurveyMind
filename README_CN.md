@@ -15,6 +15,11 @@ CLI 编排器默认在 scope 确认后先执行广覆盖检索阶段：
 - `arxiv-discover`：根据 `SURVEY_SCOPE.md` + `--topic-keywords` 广泛检索 arXiv，输出 `gate1_research_lit/arxiv_results.json`
 - `corpus-extract`：在上述 `arxiv_results.json` 基础上做相关性分层和报告生成
 
+`stage all` 默认顺序：
+
+- `brainstorm` -> `arxiv-discover` -> `corpus-extract` -> `batch-triage`
+- `paper-download` -> `paper-analysis` -> `trace-init` -> `taxonomy-alloc` -> `trace-sync` -> `validate`
+
 默认输出目录采用按 survey 隔离、按 gate 分层：
 
 - `surveys/survey_<topic_slug>/gate0_scope`
@@ -46,7 +51,7 @@ CLI 编排器默认在 scope 确认后先执行广覆盖检索阶段：
 │  │                                                                │ │
 │  │  Stage 1 ──▶ Stage 2 ──▶ Stage 3 ──▶ Stage 4 ──▶ Stage 5    │ │
 │  │  文献检索   论文分析   分类体系   空白识别     综述撰写         │ │
-│  │   8维度      构建       Gap分析     生成           │          │ │
+│  │  优先级驱动   构建       Gap分析     生成           │          │ │
 │  │    │          │           │           │            │          │ │
 │  │    ▼          ▼           ▼           ▼            ▼          │ │
 │  │  paper_   paper_     taxonomy   gap_        SURVEY_          │ │
@@ -109,10 +114,62 @@ CLI 编排器默认在 scope 确认后先执行广覆盖检索阶段：
 |------|------|------|
 | 0 | `/survey-brainstorm "宽泛主题"` | 将模糊主题精炼为聚焦范围（仅当主题模糊时） |
 | 1 | `/research-lit "子领域"` | 多源文献检索 |
+| 1.5 | `python3 tools/surveymind_run.py --stage paper-download` | 按优先级批量下载 PDF（默认 Tier1+Tier2），为深度分析做准备 |
 | 2 | `/paper-analysis "子领域"` | 基于优先级（默认Tier1+Tier2）执行深度分析并输出覆盖报告 |
 | 3 | `/taxonomy-build "子领域"` | 从分类结果构建层次化分类体系 |
 | 4 | `/gap-identify "子领域"` | 识别研究空白和未来方向 |
 | 5 | `/survey-write "子领域"` | 生成结构化综述文档 |
+
+按需扩展 Tier3/Tier4（预留接口）：
+
+```bash
+# 按需下载 Tier3/Tier4 的 PDF
+python3 tools/surveymind_run.py --stage paper-download \
+  --survey-name "{SURVEY_NAME}" \
+  --download-tier-scope tier3_tier4
+
+# 按需对 Tier3/Tier4 做深度分析
+python3 tools/surveymind_run.py --stage paper-analysis \
+  --survey-name "{SURVEY_NAME}" \
+  --analysis-tier-scope tier3_tier4 \
+  --analysis-mode deep+coverage
+```
+
+### CLI 阶段说明（surveymind_run.py）
+
+`tools/surveymind_run.py` 当前提供 10 个可执行阶段：
+
+| 阶段 | 调用工具 | 说明 |
+|------|----------|------|
+| `brainstorm` | 进程内 | 根据 `--scope-topic` + `--topic-keywords` 生成 `SURVEY_SCOPE.md` |
+| `arxiv-discover` | `arxiv_discover.py` | 基于 scope 的广覆盖 arXiv 检索，输出 gate1 `arxiv_results.json` |
+| `corpus-extract` | `arxiv_json_extractor.py` | 解析 `arxiv_results.json` 并生成分层语料报告 |
+| `batch-triage` | `batch_paper_triage.py` | 对 `arxiv_results.json` 全量进行多字段分诊 |
+| `paper-download` | 进程内 + `arxiv_fetch.py` | 按优先级确保本地 PDF 可用（默认 Tier1+Tier2） |
+| `paper-analysis` | 进程内 + `paper_triage.py` 回退 | 按优先级执行深度分析并生成覆盖率报告 |
+| `trace-init` | `survey_trace_init.py` | 解析 LaTeX 并创建 `survey_trace/` 目录树 |
+| `taxonomy-alloc` | `taxonomy_alloc.py` | 基于 `taxonomy.md` 回填分析字段与分配映射 |
+| `trace-sync` | `survey_trace_sync.py` | 同步分析结果到 `survey_trace/` 子章节记录 |
+| `validate` | `validation/run_validation.py` | 引用、基准与 guardrails 校验 |
+
+CLI 常用示例：
+
+```bash
+# 全流程
+python3 tools/surveymind_run.py --stage all \
+  --survey-name "{SURVEY_NAME}" \
+  --topic-keywords "{KEYWORDS}"
+
+# 仅下载优先级论文 PDF
+python3 tools/surveymind_run.py --stage paper-download \
+  --survey-name "{SURVEY_NAME}" \
+  --download-tier-scope tier1_tier2
+
+# 仅执行 taxonomy 驱动分配
+python3 tools/surveymind_run.py --stage taxonomy-alloc \
+  --survey-name "{SURVEY_NAME}" \
+  --verbose
+```
 
 ### 验证关卡（建议在撰写最终稿前运行）
 

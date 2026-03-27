@@ -17,7 +17,7 @@ Usage
     python3 tools/surveymind_run.py --stage corpus-extract
     python3 tools/surveymind_run.py --stage trace-init
     python3 tools/surveymind_run.py --stage trace-sync
-    python3 tools/surveymind_run.py --stage convert-12field
+    python3 tools/surveymind_run.py --stage taxonomy-alloc
 
     # With custom parameters
     python3 tools/surveymind_run.py \\
@@ -41,7 +41,7 @@ import re
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, cast
 
 # ─── Available stages ───────────────────────────────────────────────────────
 
@@ -49,11 +49,12 @@ STAGES = [
     "brainstorm",        # Stage 0: Refine fuzzy idea → SURVEY_SCOPE.md
     "arxiv-discover",    # Stage 1: Broad arXiv retrieval → arxiv_results.json
     "corpus-extract",    # Parse arxiv JSON → corpus report + tier classification
+    "paper-download",    # Download PDFs for target tiers before deep analysis
     "paper-analysis",    # Validate/prepare per-paper analysis artifacts
     "batch-triage",     # Full 12-field triage of all arxiv papers (API enrichment)
     "trace-init",        # Parse survey LaTeX → create survey_trace/ directory tree
     "trace-sync",        # Sync paper analyses → survey_trace subsection records
-    "convert-12field",   # Convert 8-field analyses → 12-field with POST_TASK_QC
+    "taxonomy-alloc",   # Taxonomy-based allocation of papers to subsections
     "validate",          # Run citation/data/guardrails validation gate
     "all",               # Run all stages in order
 ]
@@ -62,6 +63,7 @@ STAGES = [
 TIER_SCOPE_MAP = {
     "tier1": {"Tier 1 – Core"},
     "tier1_tier2": {"Tier 1 – Core", "Tier 2 – High Relevance"},
+    "tier3_tier4": {"Tier 3 – Related", "Tier 4 – Peripheral"},
     "all": {
         "Tier 1 – Core",
         "Tier 2 – High Relevance",
@@ -292,11 +294,26 @@ def run_paper_analysis(args) -> int:
             target_ids=[],
             existing_ids=set(),
             generated_ids=[],
+            metadata_fallback_ids=[],
             tier_counts=tier_counts,
         )
         return 0
 
     target_ids = sorted(targets)
+    paper_index = _load_paper_index(Path(args.paper_list), Path(args.survey_root))
+
+    if args.analysis_mode == "deep+coverage" and args.analysis_download_first:
+        dl = _ensure_local_pdf_for_targets(
+            target_ids=target_ids,
+            paper_index=paper_index,
+            pdf_dir=Path(args.pdf_dir),
+            verbose=args.verbose,
+        )
+        print(
+            "pdf pre-download: "
+            f"ready={dl['ready']} downloaded={dl['downloaded']} failed={dl['failed']}"
+        )
+
     existing = _existing_analysis_ids(analysis_dir)
     missing = sorted([pid for pid in target_ids if pid not in existing])
 
@@ -309,10 +326,14 @@ def run_paper_analysis(args) -> int:
     print(f"missing before run: {len(missing)}")
 
     generated_ids: List[str] = []
+    metadata_fallback_ids: List[str] = []
     if args.analysis_mode == "deep+coverage" and missing:
-        generated_ids = _generate_missing_analysis_drafts(
+        generated_ids, metadata_fallback_ids = _generate_missing_analysis_drafts(
             missing_ids=missing,
             analysis_dir=analysis_dir,
+            paper_index=paper_index,
+            pdf_dir=Path(args.pdf_dir),
+            retry_missing_pdf_download=True,
             verbose=args.verbose,
         )
 
@@ -328,6 +349,7 @@ def run_paper_analysis(args) -> int:
         target_ids=target_ids,
         existing_ids=existing,
         generated_ids=generated_ids,
+        metadata_fallback_ids=metadata_fallback_ids,
         tier_counts=tier_counts,
     )
 
@@ -339,6 +361,53 @@ def run_paper_analysis(args) -> int:
 
     if args.analysis_report_policy == "strict" and missing:
         print("paper-analysis strict policy failed: missing target analyses", file=sys.stderr)
+        return 1
+    return 0
+
+
+def run_paper_download(args) -> int:
+    """Download PDFs for target tiers from triage output."""
+    print("\n" + "=" * 60)
+    print("STAGE: paper-download — Priority-driven PDF download")
+    print("=" * 60)
+
+    priority_path = _resolve_priority_path(args)
+    if not priority_path.exists():
+        print(
+            f"ERROR: priority triage file not found: {priority_path} (run batch-triage first)",
+            file=sys.stderr,
+        )
+        return 1
+
+    targets, tier_counts = _load_priority_targets(priority_path, args.download_tier_scope)
+    target_ids = sorted(targets)
+    if not target_ids:
+        print(f"No target papers found for scope={args.download_tier_scope}. Nothing to download.")
+        return 0
+
+    paper_index = _load_paper_index(Path(args.paper_list), Path(args.survey_root))
+    dl = _ensure_local_pdf_for_targets(
+        target_ids=target_ids,
+        paper_index=paper_index,
+        pdf_dir=Path(args.pdf_dir),
+        verbose=args.verbose,
+    )
+
+    print(f"priority source: {priority_path}")
+    print(f"download scope: {args.download_tier_scope}")
+    print(f"target papers: {len(target_ids)}")
+    for tier, count in sorted(tier_counts.items()):
+        print(f"  {tier}: {count}")
+    print(f"pdf ready: {dl['ready']}")
+    print(f"pdf downloaded now: {dl['downloaded']}")
+    print(f"pdf failed: {dl['failed']}")
+    failed_ids = cast(List[str], dl["failed_ids"])
+    failed_count = cast(int, dl["failed"])
+    if failed_ids:
+        print(f"failed sample: {', '.join(failed_ids[:8])}")
+
+    if args.download_policy == "strict" and failed_count > 0:
+        print("paper-download strict policy failed: some PDFs could not be downloaded", file=sys.stderr)
         return 1
     return 0
 
@@ -379,33 +448,311 @@ def _existing_analysis_ids(analysis_dir: Path) -> Set[str]:
     return {p.name.replace("_analysis.md", "") for p in analysis_dir.glob("*_analysis.md")}
 
 
-def _generate_missing_analysis_drafts(missing_ids: List[str], analysis_dir: Path, verbose: bool = False) -> List[str]:
-    """Generate metadata-based analysis drafts for missing IDs.
+def _load_paper_index(paper_list_path: Path, survey_root: Path) -> Dict[str, Dict]:
+    """Load paper index from paper_list.json keyed by paper_id/arXiv_id."""
+    if not paper_list_path.exists():
+        return {}
+    try:
+        data = json.loads(paper_list_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    out: Dict[str, Dict] = {}
+    for p in data.get("papers", []):
+        if not isinstance(p, dict):
+            continue
+        pid = str(p.get("paper_id", "")).strip()
+        aid = str(p.get("arXiv_id", p.get("arxiv_id", ""))).strip()
+        key = pid or aid
+        if not key:
+            continue
+        rec = dict(p)
+        pdf_path = rec.get("pdf_path")
+        if pdf_path:
+            pdf_path_obj = Path(str(pdf_path))
+            if not pdf_path_obj.is_absolute():
+                rec["pdf_path"] = str((survey_root / pdf_path_obj).resolve())
+        out[key] = rec
+    return out
 
-    NOTE: this is a deterministic fallback generator. It does not replace
-    full PDF deep reading by LLM, but closes pipeline coverage gaps.
+
+def _generate_missing_analysis_drafts(
+    missing_ids: List[str],
+    analysis_dir: Path,
+    paper_index: Dict[str, Dict],
+    pdf_dir: Path,
+    retry_missing_pdf_download: bool,
+    verbose: bool = False,
+) -> Tuple[List[str], List[str]]:
+    """Generate PDF-first analysis drafts for missing IDs.
+
+    Strategy:
+    1) If local PDF exists -> extract text snippets and produce evidence-backed draft.
+    2) Else -> fallback to metadata-only draft.
     """
     try:
         from paper_triage import fetch_arxiv_metadata, classify_12field, DEFAULT_KEYWORDS
     except Exception as exc:
         print(f"WARNING: cannot import paper_triage for draft generation: {exc}", file=sys.stderr)
-        return []
+        return [], []
 
     generated: List[str] = []
+    metadata_fallback_ids: List[str] = []
     for idx, pid in enumerate(missing_ids, start=1):
+        if verbose and idx % 20 == 0:
+            print(f"  processing drafts: {idx}/{len(missing_ids)}")
+
+        if (analysis_dir / f"{pid}_analysis.md").exists():
+            continue
+
+        base_rec = paper_index.get(pid, {})
         meta = fetch_arxiv_metadata(pid)
         if not meta or "_error" in meta:
             continue
-        cls = classify_12field(meta, DEFAULT_KEYWORDS)
+
+        pdf_path = _resolve_pdf_path(base_rec, pid, pdf_dir)
+        if not pdf_path and retry_missing_pdf_download:
+            _download_pdf_for_id(pid, pdf_dir, verbose=verbose)
+            pdf_path = _resolve_pdf_path(base_rec, pid, pdf_dir)
+        pdf_text = _extract_pdf_text(pdf_path) if pdf_path else ""
+
+        # Improve triage classification using partial PDF text when available.
+        enriched_meta = dict(meta)
+        if pdf_text:
+            enriched_meta["abstract"] = (meta.get("abstract", "") + "\n" + pdf_text[:12000]).strip()
+        cls = classify_12field(enriched_meta, DEFAULT_KEYWORDS)
+
         out = analysis_dir / f"{pid}_analysis.md"
-        if out.exists():
-            continue
-        content = _build_analysis_draft(pid, meta, cls)
+
+        if pdf_text and pdf_path is not None:
+            content = _build_analysis_from_pdf(pid, meta, cls, pdf_text, pdf_path)
+        else:
+            content = _build_analysis_draft(pid, meta, cls)
+            metadata_fallback_ids.append(pid)
+
         out.write_text(content, encoding="utf-8")
         generated.append(pid)
+    return generated, metadata_fallback_ids
+
+
+def _resolve_pdf_path(rec: Dict, paper_id: str, pdf_dir: Optional[Path] = None) -> Optional[Path]:
+    val = rec.get("pdf_path")
+    if val:
+        p = Path(str(val))
+        if p.exists():
+            return p
+    # Fallback common location in survey layout.
+    guess = Path(rec.get("source_pdf_guess", ""))
+    if guess and guess.exists():
+        return guess
+    if pdf_dir:
+        by_safe_id = pdf_dir / f"{paper_id.replace('/', '_')}.pdf"
+        if by_safe_id.exists():
+            return by_safe_id
+        by_raw_id = pdf_dir / f"{paper_id}.pdf"
+        if by_raw_id.exists():
+            return by_raw_id
+    return None
+
+
+def _download_pdf_for_id(arxiv_id: str, pdf_dir: Path, verbose: bool = False) -> Optional[Path]:
+    """Download a single arXiv PDF into pdf_dir and return local path if available."""
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        from arxiv_fetch import download as arxiv_download
+
+        result = arxiv_download(arxiv_id, output_dir=str(pdf_dir))
+        out = Path(result.get("path", "")) if isinstance(result, dict) else None
+        if out and out.exists():
+            return out
+    except Exception as exc:
+        if verbose:
+            print(f"  download import-path failed for {arxiv_id}: {exc}")
+
+    try:
+        import subprocess
+
+        cmd = [sys.executable, "tools/arxiv_fetch.py", "download", arxiv_id, "--dir", str(pdf_dir)]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if res.returncode != 0 and verbose:
+            print(f"  download cmd failed for {arxiv_id}: {res.stderr.strip()}")
+    except Exception as exc:
+        if verbose:
+            print(f"  download subprocess failed for {arxiv_id}: {exc}")
+
+    candidate = pdf_dir / f"{arxiv_id.replace('/', '_')}.pdf"
+    if candidate.exists():
+        return candidate
+    raw_candidate = pdf_dir / f"{arxiv_id}.pdf"
+    if raw_candidate.exists():
+        return raw_candidate
+    return None
+
+
+def _ensure_local_pdf_for_targets(
+    target_ids: List[str],
+    paper_index: Dict[str, Dict],
+    pdf_dir: Path,
+    verbose: bool = False,
+) -> Dict[str, object]:
+    """Ensure local PDFs exist for all target IDs."""
+    ready = 0
+    downloaded = 0
+    failed = 0
+    failed_ids: List[str] = []
+
+    for idx, pid in enumerate(target_ids, start=1):
         if verbose and idx % 20 == 0:
-            print(f"  generated drafts: {idx}/{len(missing_ids)}")
-    return generated
+            print(f"  checking pdfs: {idx}/{len(target_ids)}")
+
+        rec = paper_index.get(pid, {})
+        existing = _resolve_pdf_path(rec, pid, pdf_dir)
+        if existing:
+            ready += 1
+            continue
+
+        out = _download_pdf_for_id(pid, pdf_dir, verbose=verbose)
+        if out and out.exists():
+            downloaded += 1
+            continue
+
+        failed += 1
+        failed_ids.append(pid)
+
+    return {
+        "ready": ready,
+        "downloaded": downloaded,
+        "failed": failed,
+        "failed_ids": failed_ids,
+    }
+
+
+def _extract_pdf_text(pdf_path: Path) -> str:
+    """Extract first pages text from a PDF, trying pdftotext then pypdf."""
+    import subprocess
+
+    if not pdf_path or not pdf_path.exists():
+        return ""
+
+    # 1) Try pdftotext (fast and robust when installed).
+    try:
+        cmd = ["pdftotext", "-f", "1", "-l", "20", "-layout", str(pdf_path), "-"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if res.returncode == 0 and len(res.stdout.strip()) > 200:
+            return res.stdout
+    except Exception:
+        pass
+
+    # 2) Fallback to pypdf.
+    try:
+        from pypdf import PdfReader  # type: ignore
+
+        reader = PdfReader(str(pdf_path))
+        parts: List[str] = []
+        for page in reader.pages[:20]:
+            txt = page.extract_text() or ""
+            if txt:
+                parts.append(txt)
+        text = "\n".join(parts)
+        if len(text.strip()) > 200:
+            return text
+    except Exception:
+        pass
+
+    return ""
+
+
+def _pick_sentences(text: str, keywords: List[str], limit: int = 2) -> List[str]:
+    sentences = re.split(r"(?<=[\.!?])\s+", re.sub(r"\s+", " ", text))
+    out: List[str] = []
+    for s in sentences:
+        ls = s.lower()
+        if any(k in ls for k in keywords) and len(s) >= 40:
+            out.append(s.strip())
+            if len(out) >= limit:
+                break
+    return out
+
+
+def _collect_evidence(pdf_text: str, abstract_text: str) -> Dict[str, List[str]]:
+    text = pdf_text or ""
+    return {
+        "method": _pick_sentences(text, ["method", "propose", "framework", "algorithm", "quantization"], limit=2)
+        or _pick_sentences(abstract_text, ["propose", "quantization"], limit=1),
+        "evaluation": _pick_sentences(text, ["experiment", "benchmark", "perplexity", "accuracy", "latency", "throughput"], limit=2)
+        or _pick_sentences(abstract_text, ["benchmark", "evaluate"], limit=1),
+        "hardware": _pick_sentences(text, ["gpu", "cpu", "edge", "hardware", "kernel", "accelerator"], limit=2),
+        "training": _pick_sentences(text, ["post-training", "ptq", "qat", "fine-tuning", "training"], limit=2),
+    }
+
+
+def _build_analysis_from_pdf(paper_id: str, meta: Dict, cls: Dict, pdf_text: str, pdf_path: Path) -> str:
+    title = meta.get("title", "")
+    authors = meta.get("authors", [])
+    published = meta.get("published", "")
+    year = published[:4] if published else "Unknown"
+    month = published[5:7] if len(published) >= 7 else "Unknown"
+    abstract = meta.get("abstract", "")
+    ev = _collect_evidence(pdf_text, abstract)
+
+    def _render_block(name: str, rows: List[str]) -> str:
+        if not rows:
+            return f"- {name}: evidence not confidently extracted from first pages"
+        return "\n".join([f"- {name}: {r}" for r in rows])
+
+    return f"""# Paper Analysis: {paper_id}
+
+## Paper Metadata
+
+- **Paper ID**: {paper_id}
+- **Title**: {title}
+- **Authors**: {', '.join(authors) if authors else 'Unknown'}
+- **Year/Month**: {year}/{month}
+- **Venue**: arXiv
+- **Source**: Local PDF + arXiv metadata
+- **arXiv ID**: {paper_id}
+- **PDF Path**: {pdf_path}
+- **Analysis Date**: {datetime.now().date()}
+
+---
+
+## 12-Field Classification (PDF-First Draft)
+
+1. **Model Type**: {cls.get('model_type', 'Unknown')}
+2. **Method Category**: {cls.get('method_category', 'Unknown')}
+3. **Specific Method**: {cls.get('specific_method', 'Unknown')}
+4. **Training Paradigm**: {cls.get('training', 'Unknown')}
+5. **Core Challenge**: {cls.get('core_challenge', 'Unknown')}
+6. **Evaluation Focus**: {cls.get('evaluation', 'Unknown')}
+7. **Hardware Co-design**: {cls.get('hardware', 'Unknown')}
+8. **Summary**: {cls.get('summary', 'Unknown')}
+9. **Quantization Bit Scope**: {cls.get('bit_scope', 'Unknown')}
+10. **General Method Type**: {cls.get('general_method', 'Unknown')}
+11. **Core Challenge Addressed**: {cls.get('core_challenge_addressed', 'Unknown')}
+12. **Survey Contribution Mapping**: {cls.get('survey_contribution', 'Unknown')}
+
+---
+
+## Evidence Snippets (From PDF First Pages)
+
+{_render_block('Method', ev.get('method', []))}
+{_render_block('Evaluation', ev.get('evaluation', []))}
+{_render_block('Hardware', ev.get('hardware', []))}
+{_render_block('Training', ev.get('training', []))}
+
+---
+
+## Abstract Snapshot
+
+{abstract}
+
+---
+
+## Notes
+
+- This file is auto-generated in PDF-first mode from locally available PDF text.
+- TODO-DEEP-READ: Upgrade to full section-level evidence extraction when needed.
+
+"""
 
 
 def _build_analysis_draft(paper_id: str, meta: Dict, cls: Dict) -> str:
@@ -470,6 +817,7 @@ def _write_coverage_report(
     target_ids: List[str],
     existing_ids: Set[str],
     generated_ids: List[str],
+    metadata_fallback_ids: Optional[List[str]],
     tier_counts: Dict[str, int],
 ) -> Tuple[str, str]:
     done = sorted([pid for pid in target_ids if pid in existing_ids])
@@ -487,6 +835,8 @@ def _write_coverage_report(
         "coverage_rate": coverage_rate,
         "generated_count": len(generated_ids),
         "generated_ids": generated_ids,
+        "metadata_fallback_count": len(metadata_fallback_ids or []),
+        "metadata_fallback_ids": metadata_fallback_ids or [],
         "tier_breakdown": tier_counts,
         "missing_ids": missing,
     }
@@ -506,6 +856,7 @@ def _write_coverage_report(
         f"- Missing count: {len(missing)}",
         f"- Coverage rate: {coverage_rate}%",
         f"- Auto-generated draft count: {len(generated_ids)}",
+        f"- Metadata fallback count: {len(metadata_fallback_ids or [])}",
         "",
         "## Tier Breakdown",
         "",
@@ -577,18 +928,17 @@ def run_trace_sync(args) -> int:
     return result.returncode
 
 
-def run_convert_12field(args) -> int:
-    """Run convert_to_12field to upgrade analyses to 12-field format."""
+def run_taxonomy_alloc(args) -> int:
+    """Run taxonomy_alloc to derive paper fields from taxonomy and auto-generate routing."""
     print("\n" + "=" * 60)
-    print("STAGE: convert-12field — 8-field → 12-field conversion")
+    print("STAGE: taxonomy-alloc — Taxonomy-based field derivation and routing")
     print("=" * 60)
 
     cmd = [
-        sys.executable, "tools/convert_to_12field.py",
-        "--papers-dir", args.analysis_dir,
+        sys.executable, "tools/taxonomy_alloc.py",
+        "--analysis-dir", args.analysis_dir,
+        "--taxonomy-dir", args.gate3_dir,
     ]
-    if args.output_dir:
-        cmd.extend(["--output-dir", args.output_dir])
     if args.dry_run:
         cmd.append("--dry-run")
     if args.verbose:
@@ -730,11 +1080,12 @@ STAGE_HANDLERS = {
     "brainstorm": run_brainstorm,
     "arxiv-discover": run_arxiv_discover,
     "corpus-extract": run_corpus_extract,
+    "paper-download": run_paper_download,
     "paper-analysis": run_paper_analysis,
     "batch-triage": run_batch_triage,
     "trace-init": run_trace_init,
     "trace-sync": run_trace_sync,
-    "convert-12field": run_convert_12field,
+    "taxonomy-alloc": run_taxonomy_alloc,
     "validate": run_validate,
 }
 
@@ -850,10 +1201,6 @@ def main():
         help="Base name for output files (e.g. corpus_report)"
     )
     ap.add_argument(
-        "--output-dir",
-        help="Output directory for 12-field conversion (default: in-place)"
-    )
-    ap.add_argument(
         "--force", action="store_true",
         help="Force recreate trace dir (for trace-init)"
     )
@@ -895,7 +1242,7 @@ def main():
     ap.add_argument(
         "--analysis-tier-scope",
         default="tier1_tier2",
-        choices=["tier1", "tier1_tier2", "all"],
+        choices=["tier1", "tier1_tier2", "tier3_tier4", "all"],
         help="Target priority tiers for paper-analysis stage (default: tier1_tier2)",
     )
     ap.add_argument(
@@ -911,9 +1258,27 @@ def main():
         help="Coverage policy for paper-analysis stage (default: report-only)",
     )
     ap.add_argument(
+        "--analysis-download-first",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Download missing PDFs for target tiers before deep analysis (default: on)",
+    )
+    ap.add_argument(
         "--analysis-priority-json",
         default="gate2_paper_analysis/all_papers_triage",
         help="Priority triage file path relative to survey root or absolute path (default: gate2_paper_analysis/all_papers_triage)",
+    )
+    ap.add_argument(
+        "--download-tier-scope",
+        default="tier1_tier2",
+        choices=["tier1", "tier1_tier2", "tier3_tier4", "all"],
+        help="Target priority tiers for paper-download stage (default: tier1_tier2)",
+    )
+    ap.add_argument(
+        "--download-policy",
+        default="report-only",
+        choices=["strict", "report-only"],
+        help="Failure policy for paper-download stage (default: report-only)",
     )
 
     args = ap.parse_args()
@@ -969,9 +1334,10 @@ def main():
             "arxiv-discover",
             "corpus-extract",
             "batch-triage",
+            "paper-download",
             "paper-analysis",
             "trace-init",
-            "convert-12field",
+            "taxonomy-alloc",
             "trace-sync",
             "validate",
         ]

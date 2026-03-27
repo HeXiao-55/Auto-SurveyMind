@@ -73,10 +73,10 @@ Stage 2 ────────────────────────
   ── OR, for bulk API-level coverage check ──
   python3 tools/surveymind_run.py --stage paper-analysis   [CLI]
         │
-        │  tools/batch_paper_triage.py  (12-field via arXiv API, no deep PDF)
+        │  tools/batch_paper_triage.py  (multi-field via arXiv API, no deep PDF)
         │
         ▼
-  gate2_paper_analysis/all_papers_triage.json  (12-field triage for all papers in gate1 paper_list.json)
+  gate2_paper_analysis/all_papers_triage.json  (multi-field triage for all papers in gate1 paper_list.json)
         │
         ▼ [state saved: WORKLOG.md + findings.md updated]
 
@@ -130,9 +130,10 @@ Stage 7 (Full CLI Orchestration) ───────────────�
   ├──> arxiv-discover    ──▶ tools/arxiv_discover.py ──▶ gate1_research_lit/arxiv_results.json
         ├──> corpus-extract     ──▶ tools/arxiv_json_extractor.py ──▶ gate1_research_lit/corpus_report.md
         ├──> batch-triage      ──▶ tools/batch_paper_triage.py ──▶ gate2_paper_analysis/all_papers_triage.json
+        ├──> paper-download    ──▶ download PDFs for target tiers (Tier1/2 by default)
         ├──> paper-analysis    ──▶ tier-priority deep analysis + coverage report (Tier1/2 by default)
         ├──> trace-init       ──▶ tools/survey_trace_init.py ──▶ survey_trace/ directory tree
-        ├──> convert-12field  ──▶ tools/convert_to_12field.py ──▶ upgraded 12-field analyses
+        ├──> taxonomy-alloc   ──▶ tools/taxonomy_alloc.py ──▶ taxonomy-derived field allocation
         ├──> trace-sync       ──▶ tools/survey_trace_sync.py ──▶ survey_trace/**/SUBSECTION_RECORD.md
         └──> validate          ──▶ validation/run_validation.py ──▶ validation report
 ```
@@ -159,9 +160,9 @@ Stage 7 (Full CLI Orchestration) ───────────────�
 | `tools/arxiv_fetch.py search "query" --max N` | Search arXiv API | query | JSON paper list |
 | `tools/arxiv_fetch.py download <id> --dir papers/` | Download PDF by arXiv ID | arXiv ID | `papers/<id>.pdf` |
 | `tools/arxiv_json_extractor.py` | Parse arXiv JSON → tier classification | `arxiv_results.json` | `corpus_report.md` |
-| `tools/batch_paper_triage.py` | 12-field triage of ALL papers via arXiv API | `arxiv_results.json` | `all_papers_triage.json` |
-| `tools/paper_triage.py <arxiv_id>` | Single-paper 12-field classification | arXiv ID | printed 12-field + subsection |
-| `tools/convert_to_12field.py` | Upgrade 8-field → 12-field + POST_TASK_QC | `gate2_paper_analysis/*.md` | updated analyses |
+| `tools/batch_paper_triage.py` | multi-field triage of ALL papers via arXiv API | `arxiv_results.json` | `all_papers_triage.json` |
+| `tools/paper_triage.py <arxiv_id>` | Single-paper multi-field classification | arXiv ID | printed multi-field + subsection |
+| `tools/taxonomy_alloc.py` | Derive taxonomy-based fields from `taxonomy.md` and update analyses | `gate2_paper_analysis/*.md` + `gate3_taxonomy/taxonomy.md` | updated analyses |
 | `tools/survey_trace_init.py` | Parse LaTeX → create survey_trace/ tree | survey `.tex` | `survey_trace/13 sections/` |
 | `tools/survey_trace_sync.py` | Sync analyses → survey_trace records | `gate2_paper_analysis/` | `survey_trace/**/SUBSECTION_RECORD.md` |
 | `tools/generate_survey_mindmap.py` | Generate mindmap from survey_trace | `survey_trace/` | `mindmap/survey_mindmap.pdf` |
@@ -171,7 +172,7 @@ Stage 7 (Full CLI Orchestration) ───────────────�
 
 ## surveymind_run.py Stages
 
-`tools/surveymind_run.py` exposes 9 executable stages:
+`tools/surveymind_run.py` exposes 10 executable stages:
 
 ```
 python3 tools/surveymind_run.py --stage <name>
@@ -182,10 +183,11 @@ python3 tools/surveymind_run.py --stage <name>
 | `brainstorm` | in-process | Generate `SURVEY_SCOPE.md` from `--scope-topic` + `--topic-keywords` |
 | `arxiv-discover` | `arxiv_discover.py` | Broad-recall arXiv retrieval after scope confirmation, outputs gate1 `arxiv_results.json` |
 | `corpus-extract` | `arxiv_json_extractor.py` | Parse `arxiv_results.json` → tiered corpus report |
+| `paper-download` | in-process + `arxiv_fetch.py` | Ensure local PDFs exist for target tiers before deep analysis |
 | `paper-analysis` | in-process + `paper_triage.py` fallback | Build target set from `all_papers_triage`, optionally generate missing analysis drafts, and emit coverage report |
-| `batch-triage` | `batch_paper_triage.py` | 12-field triage of ALL papers in `arxiv_results.json` via arXiv API |
+| `batch-triage` | `batch_paper_triage.py` | multi-field triage of ALL papers in `arxiv_results.json` via arXiv API |
 | `trace-init` | `survey_trace_init.py` | Parse LaTeX → create `survey_trace/` directory tree |
-| `convert-12field` | `convert_to_12field.py` | Upgrade existing analyses from 8-field → 12-field format |
+| `taxonomy-alloc` | `taxonomy_alloc.py` | Derive analysis fields from taxonomy structure and method-challenge mappings |
 | `trace-sync` | `survey_trace_sync.py` | Sync paper analyses → `survey_trace/` subsection records |
 | `validate` | `validation/run_validation.py` | Citation integrity, benchmark sanity, guardrail checks |
 | `all` | all above | Run full pipeline in dependency order |
@@ -213,7 +215,23 @@ python3 tools/surveymind_run.py --stage all \
 python3 tools/surveymind_run.py --stage corpus-extract
 python3 tools/surveymind_run.py --stage arxiv-discover
 python3 tools/surveymind_run.py --stage batch-triage --verbose
+python3 tools/surveymind_run.py --stage paper-download --download-tier-scope tier1_tier2
 python3 tools/surveymind_run.py --stage trace-sync --verbose
+```
+
+Priority-scope control for optional Tier3/4 operations:
+
+```bash
+# Download Tier3/4 PDFs only when you decide to expand later-stage analysis
+python3 tools/surveymind_run.py --stage paper-download \
+  --survey-name "{SURVEY_NAME}" \
+  --download-tier-scope tier3_tier4
+
+# Run deep analysis on Tier3/4 on demand
+python3 tools/surveymind_run.py --stage paper-analysis \
+  --survey-name "{SURVEY_NAME}" \
+  --analysis-tier-scope tier3_tier4 \
+  --analysis-mode deep+coverage
 ```
 
 ---
@@ -262,6 +280,11 @@ python3 tools/surveymind_run.py --stage corpus-extract --survey-name ultra_low_b
 python3 tools/surveymind_run.py --stage batch-triage \
   --survey-name ultra_low_bit \
   --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+
+# 4. Download Tier1/2 PDFs before deep analysis
+python3 tools/surveymind_run.py --stage paper-download \
+  --survey-name ultra_low_bit \
+  --download-tier-scope tier1_tier2
 ```
 
 Then deep-analyze newly added papers with a Skill:
@@ -325,14 +348,15 @@ This gives you a fully reproducible re-run while keeping zero overlap with and z
 │  SCOPE.md   list.json  analysis/   .md     analysis.md  DRAFT.md      │
 │                                                                           │
 │  CLI-based: python3 tools/surveymind_run.py --stage all                  │
-│    brainstorm ──▶ corpus-extract ──▶ batch-triage ──▶ paper-analysis     │
+│    brainstorm ──▶ corpus-extract ──▶ batch-triage ──▶ paper-download      │
+│        └──────────────────────────────────────────────▶ paper-analysis     │
 │         │              │                │                 │             │
 │    SURVEY_       corpus_         all_papers_        coverage            │
 │    SCOPE.md      report.md       triage.json         check              │
 │                                                                           │
 │         │              │                │                 │             │
 │         ▼              ▼                ▼                 ▼             │
-│    trace-init ──▶ convert-12field ──▶ trace-sync ──▶ validate            │
+│    trace-init ──▶ taxonomy-alloc ──▶ trace-sync ──▶ validate            │
 │         │              │                │                 │             │
 │    survey_trace/   upgraded          survey_trace/     validation         │
 │                    analyses         /**/SUBSECTION_      report         │
@@ -389,9 +413,9 @@ SurveyMind/
 │   ├── surveymind_run.py         # Pipeline orchestrator (8 stages)
 │   ├── arxiv_fetch.py            # arXiv search & download
 │   ├── arxiv_json_extractor.py   # arXiv JSON → corpus report
-│   ├── batch_paper_triage.py     # Bulk 12-field triage via API
-│   ├── paper_triage.py           # Single-paper 12-field triage
-│   ├── convert_to_12field.py     # 8-field → 12-field upgrade
+│   ├── batch_paper_triage.py     # Bulk multi-field triage via API
+│   ├── paper_triage.py           # Single-paper multi-field triage
+│   ├── taxonomy_alloc.py         # Taxonomy-based field allocation
 │   ├── survey_trace_init.py      # LaTeX → survey_trace/ tree
 │   ├── survey_trace_sync.py      # Analyses → survey_trace records
 │   ├── generate_survey_mindmap.py # Mindmap generation
