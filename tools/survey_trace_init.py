@@ -34,8 +34,8 @@ Outline YAML format
         name: "background"
         title: "Background"
         subsections:
-          - "quantization_fundamentals"
-          - "llm_architectures"
+                    - "fundamentals"
+                    - "core_architectures"
 
 Output structure
 ---------------
@@ -49,7 +49,7 @@ Output structure
     │   │   └── SUBFOLDER_SUMMARY.md
     │   └── SECTION_SUMMARY.md
     ├── 02_background/
-    │   ├── 01_quantization_fundamentals/
+    │   ├── 01_fundamentals/
     │   │   ├── SUBSECTION_RECORD.md
     │   │   └── SUBFOLDER_SUMMARY.md
     │   └── SECTION_SUMMARY.md
@@ -125,9 +125,9 @@ def parse_tex_sections(tex_path: str) -> list[dict]:
     if current_section:
         sections.append(current_section)
 
-    # If no sections found, fall back to default
+    # If no sections found, fall back to a generic survey outline.
     if not sections:
-        sections = _default_ultra_low_bit_outline()
+        sections = _default_generic_outline()
 
     return sections
 
@@ -167,8 +167,8 @@ def _title_to_dirname(title: str) -> str:
     return s.lower()[:60]
 
 
-def _default_ultra_low_bit_outline() -> list[dict]:
-    """Fallback outline matching the extreme quantization survey."""
+def _default_generic_outline() -> list[dict]:
+    """Domain-agnostic fallback outline used when LaTeX sections are unavailable."""
     return [
         {
             "number": "01", "name": "introduction", "title": "Introduction",
@@ -182,58 +182,49 @@ def _default_ultra_low_bit_outline() -> list[dict]:
             "subsections": []
         },
         {
-            "number": "03", "name": "background", "title": "Background & Theory",
+            "number": "03", "name": "background", "title": "Background & Problem Setting",
             "subsections": [
-                {"number": "01", "name": "quantization_fundamentals", "title": "Quantization Fundamentals"},
+                {"number": "01", "name": "fundamentals", "title": "Fundamentals"},
             ]
         },
         {
-            "number": "04", "name": "taxonomy", "title": "Unified Taxonomy",
+            "number": "04", "name": "taxonomy", "title": "Taxonomy & Categorization",
             "subsections": [
-                {"number": "01", "name": "problem_treatment", "title": "Problem-Treatment Framework"},
+                {"number": "01", "name": "categorization_dimensions", "title": "Categorization Dimensions"},
             ]
         },
         {
-            "number": "05", "name": "qat", "title": "Quantization-Aware Training",
+            "number": "05", "name": "method_family_a", "title": "Method Family A",
             "subsections": [
-                {"number": "01", "name": "binary_networks", "title": "Binary Networks (1-bit)"},
-                {"number": "02", "name": "ternary_networks", "title": "Ternary Networks (1.58-bit)"},
-                {"number": "03", "name": "recent_qat", "title": "Recent Advances"},
+                {"number": "01", "name": "core_methods", "title": "Core Methods"},
+                {"number": "02", "name": "recent_advances", "title": "Recent Advances"},
             ]
         },
         {
-            "number": "06", "name": "ptq", "title": "Post-Training Quantization",
+            "number": "06", "name": "method_family_b", "title": "Method Family B",
             "subsections": [
-                {"number": "01", "name": "ultra_low_ptq", "title": "Ultra-Low Bit PTQ"},
-                {"number": "02", "name": "standard_ptq", "title": "Standard PTQ (3-4-bit)"},
+                {"number": "01", "name": "variant_1", "title": "Variant 1"},
+                {"number": "02", "name": "variant_2", "title": "Variant 2"},
             ]
         },
         {
-            "number": "07", "name": "outlier", "title": "Outlier Handling",
+            "number": "07", "name": "evaluation", "title": "Evaluation & Benchmarks",
             "subsections": []
         },
         {
-            "number": "08", "name": "hardware", "title": "Hardware Implementation",
+            "number": "08", "name": "applications", "title": "Applications & Systems",
             "subsections": []
         },
         {
-            "number": "09", "name": "benchmark", "title": "Benchmark Comparison",
+            "number": "09", "name": "gaps", "title": "Research Gaps",
             "subsections": []
         },
         {
-            "number": "10", "name": "gaps", "title": "Research Gaps",
+            "number": "10", "name": "future", "title": "Future Directions",
             "subsections": []
         },
         {
-            "number": "11", "name": "multimodal", "title": "Beyond Text: Multimodal & Agents",
-            "subsections": []
-        },
-        {
-            "number": "12", "name": "future", "title": "Future Directions",
-            "subsections": []
-        },
-        {
-            "number": "13", "name": "conclusion", "title": "Conclusion",
+            "number": "11", "name": "conclusion", "title": "Conclusion",
             "subsections": []
         },
     ]
@@ -505,9 +496,9 @@ def main():
     args = ap.parse_args()
 
     if not (args.from_tex or args.outline_yaml or args.outline_json):
-        # Fall back to default ultra-low-bit outline
-        sections = _default_ultra_low_bit_outline()
-        print("No outline source specified — using built-in default (ultra-low bit LLM quantization).")
+        # Fall back to generic built-in outline
+        sections = _default_generic_outline()
+        print("No outline source specified — using built-in generic survey outline.")
     elif args.from_tex:
         sections = parse_tex_sections(args.from_tex)
         print(f"Parsed {len(sections)} sections from {args.from_tex}")

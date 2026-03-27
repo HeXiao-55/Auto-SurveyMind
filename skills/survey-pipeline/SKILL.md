@@ -1,7 +1,7 @@
 ---
 name: survey-pipeline
 description: "End-to-end survey construction pipeline: research literature → paper analysis → taxonomy building → gap identification → survey writing. Use when user says \"survey pipeline\", \"full survey\", \"build a survey\", \"automated survey\", or wants to generate a comprehensive research survey document. Command: /survey-pipeline \"research subfield\""
-argument-hint: [research-subfield]
+argument-hint: "research-subfield"
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, WebSearch, WebFetch, mcp__zotero__*, mcp__obsidian-vault__*
 ---
 
@@ -24,7 +24,7 @@ Brainstorm & Scope → Research Literature → Paper Analysis → Taxonomy Build
 
 ## Arguments
 
-**$ARGUMENTS**: The research subfield to survey (e.g., "Efficient LLM inference", "Model quantization"). If the idea is fuzzy or too broad, the pipeline will invoke `/survey-brainstorm` first to refine the scope.
+**$ARGUMENTS**: The research subfield to survey (e.g., "graph robustness", "multimodal reasoning evaluation"). If the idea is fuzzy or too broad, the pipeline will invoke `/survey-brainstorm` first to refine the scope.
 
 ## Constants
 
@@ -38,12 +38,12 @@ Brainstorm & Scope → Research Literature → Paper Analysis → Taxonomy Build
 
 **Command**: `/survey-brainstorm "$ARGUMENTS"`
 
-**When to run**: If the user's idea is fuzzy (e.g., "I want to write a survey about LLM compression") rather than a specific subfield, invoke this stage FIRST to jointly refine the scope.
+**When to run**: If the user's idea is fuzzy (e.g., "I want to write a survey about AI systems") rather than a specific subfield, invoke this stage FIRST to jointly refine the scope.
 
 **What happens:**
 1. Explores the broad field via arXiv search and web search
 2. Presents sub-directions to the user
-3. Asks clarifying questions (bit-width focus, model types, method scope, target venue)
+3. Asks clarifying questions (problem scope, target entities/tasks, method families, target venue)
 4. Outputs `SURVEY_SCOPE.md` with refined topic and parameters
 
 **Output:** `SURVEY_SCOPE.md` — refined survey specification
@@ -53,9 +53,9 @@ After Stage 0, present the refined scope. If `AUTO_PROCEED=true`, auto-continue.
 ```
 📋 Refined Survey Scope:
 
-Topic: Ultra-low bit PTQ & QAT for Edge-deployable Decoder-only LLMs
-Keywords: quantization, LLM, binary, ternary, 1-bit, 1.58-bit, post-training
-Bit-width: <2-bit focus
+Topic: Robust graph learning under distribution shift
+Keywords: graph neural network, robustness, distribution shift, benchmark
+Problem scope: method + evaluation protocol
 Venue: TPAMI
 
 [Auto] Proceeding to literature search... (AUTO_PROCEED=true)
@@ -157,10 +157,10 @@ After Stage 2, report analysis completion. If `AUTO_PROCEED=true`, auto-continue
 📁 Results saved to: paper_analysis_results/
 
 Classification summary:
-- LLM papers: N
-- MLLM papers: N
-- QAT methods: N
-- PTQ methods: N
+- Model family A: N
+- Model family B: N
+- Method family A: N
+- Method family B: N
 ...
 
 [Auto] Proceeding to taxonomy building... (AUTO_PROCEED=true)
@@ -285,7 +285,7 @@ Next steps:
 
 ## Key Rules
 
-- **Fuzzy topic detection**: If `$ARGUMENTS` is too broad or vague (e.g., "survey on AI", "写综述", just "quantization"), invoke `/survey-brainstorm` FIRST to refine the scope before proceeding to Stage 1.
+- **Fuzzy topic detection**: If `$ARGUMENTS` is too broad or vague (e.g., "survey on AI", "写综述", "optimization"), invoke `/survey-brainstorm` FIRST to refine the scope before proceeding to Stage 1.
 - **Sequential execution**: Each stage depends on the previous
 - **Auto-proceed by default**: When `AUTO_PROCEED=true`, automatically continue through gates (default behavior)
 - **Graceful degradation**: If a stage finds few papers, continue with warning
@@ -312,9 +312,9 @@ The pipeline chains these skills:
 ## Typical Use Cases
 
 ```
-/survey-pipeline "efficient LLM inference"
-/survey-pipeline "model quantization for LLMs"
-/survey-pipeline "sparse methods for transformer models"
+/survey-pipeline "graph neural network robustness"
+/survey-pipeline "multimodal reasoning evaluation"
+/survey-pipeline "privacy-preserving federated optimization"
 ```
 
 ## Files Generated

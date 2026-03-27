@@ -38,10 +38,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from domain_profile import (
+    DomainProfileError,
+    load_domain_profile,
+    profile_routing_fallback,
+    profile_routing_rules,
+)
+
 
 # ─── Taxonomy Parsing ─────────────────────────────────────────────────────────
 
-def parse_taxonomy_md(taxonomy_path: Path) -> Dict:
+def parse_taxonomy_md(
+    taxonomy_path: Path,
+    profile_rules: Optional[List[Dict]] = None,
+    routing_fallback: str = "02/01_general_related_work",
+) -> Dict:
     """Parse taxonomy.md and extract all relevant tables and mappings."""
 
     content = taxonomy_path.read_text()
@@ -59,7 +70,11 @@ def parse_taxonomy_md(taxonomy_path: Path) -> Dict:
     challenge_map = _parse_challenge_matrix(content)
 
     # Parse level-1 structure for routing rules
-    routing_rules = _parse_level1_for_routing(content)
+    routing_rules = _parse_level1_for_routing(
+        content,
+        profile_rules=profile_rules,
+        routing_fallback=routing_fallback,
+    )
 
     return {
         "paper_methods": paper_methods,
@@ -198,8 +213,15 @@ def _parse_challenge_matrix(content: str) -> Dict[str, List[str]]:
     return result
 
 
-def _parse_level1_for_routing(content: str) -> List[Dict]:
+def _parse_level1_for_routing(
+    content: str,
+    profile_rules: Optional[List[Dict]] = None,
+    routing_fallback: str = "02/01_general_related_work",
+) -> List[Dict]:
     """Parse Level-1 taxonomy structure to generate routing rules."""
+
+    if profile_rules:
+        return profile_rules
 
     # Level-1 categories and their section mappings
     # Based on the survey_trace structure:
@@ -271,6 +293,12 @@ def _parse_level1_for_routing(content: str) -> List[Dict]:
             "paradigm": [],
             "method_keywords": ["benchmark", "perplexity", "latency"],
             "subsection": "09/02_performance_comparison"
+        },
+        {
+            "name": "Fallback",
+            "paradigm": [],
+            "method_keywords": [],
+            "subsection": routing_fallback,
         },
     ]
 
@@ -359,21 +387,21 @@ def update_paper_analysis(
     # Derive Survey Contribution Mapping based on paradigm
     if paradigm:
         if "QAT" in paradigm:
-            new_fields["Survey Contribution Mapping"] = "Establishes ultra-low-bit training capability for LLMs; addresses gradient flow and representation capacity trade-offs."
+            new_fields["Survey Contribution Mapping"] = "Provides training-time method evidence; highlights optimization and representation trade-offs."
         elif "PTQ" in paradigm:
-            new_fields["Survey Contribution Mapping"] = "Enables accurate post-training quantization at ≤4-bit; focuses on calibration and reconstruction methods."
+            new_fields["Survey Contribution Mapping"] = "Provides post-processing method evidence; highlights calibration and reconstruction behavior."
         elif paradigm == "Hardware":
-            new_fields["Survey Contribution Mapping"] = "Provides hardware-friendly inference for ultra-low-bit LLMs; addresses deployment mismatch."
+            new_fields["Survey Contribution Mapping"] = "Provides deployment and systems evidence; highlights platform and implementation constraints."
         elif paradigm == "Multimodal":
-            new_fields["Survey Contribution Mapping"] = "Extends ultra-low-bit quantization to multimodal LLMs; addresses cross-modal challenges."
+            new_fields["Survey Contribution Mapping"] = "Extends methods to cross-domain settings; highlights transfer and modality alignment issues."
         else:
-            new_fields["Survey Contribution Mapping"] = f"Addresses {paradigm.lower()} challenges in ultra-low-bit quantization."
+            new_fields["Survey Contribution Mapping"] = f"Addresses {paradigm.lower()}-related methodological challenges."
 
-    # Derive Ultra-low-bit Relevance Summary
+    # Derive domain-agnostic relevance summary
     if derived_bit_scope:
-        new_fields["Ultra-low-bit Relevance Summary"] = f"Method achieves {derived_bit_scope} quantization with focus on: {', '.join(derived_challenges[:2]) if derived_challenges else 'representation capacity'}."
+        new_fields["Relevance Summary"] = f"Method focuses on scope {derived_bit_scope} with primary concerns: {', '.join(derived_challenges[:2]) if derived_challenges else 'core method quality'}."
     else:
-        new_fields["Ultra-low-bit Relevance Summary"] = f"Contributes to ultra-low-bit quantization landscape; addresses: {', '.join(derived_challenges[:2]) if derived_challenges else 'quantization challenges'}."
+        new_fields["Relevance Summary"] = f"Contributes to the target survey scope; addresses: {', '.join(derived_challenges[:2]) if derived_challenges else 'general methodological challenges'}."
 
     # Now update the content
     updated_content = content
@@ -451,6 +479,11 @@ def main():
         help="Directory containing paper analysis .md files"
     )
     parser.add_argument(
+        "--domain-profile",
+        default="templates/domain_profiles/general_profile.json",
+        help="Domain profile JSON path",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what would change without writing"
@@ -462,8 +495,24 @@ def main():
     )
     args = parser.parse_args()
 
+    tools_dir = Path(__file__).parent
+    root_dir = tools_dir.parent
+
     taxonomy_path = Path(args.taxonomy_dir) / "taxonomy.md"
     analysis_dir = Path(args.analysis_dir)
+    if not taxonomy_path.is_absolute():
+        taxonomy_path = (root_dir / taxonomy_path).resolve()
+    if not analysis_dir.is_absolute():
+        analysis_dir = (root_dir / analysis_dir).resolve()
+
+    try:
+        profile, profile_path = load_domain_profile(args.domain_profile, root_dir)
+    except DomainProfileError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    profile_rules = profile_routing_rules(profile)
+    routing_fallback = profile_routing_fallback(profile, "02/01_general_related_work")
 
     if not taxonomy_path.exists():
         print(f"ERROR: Taxonomy not found at {taxonomy_path}", file=sys.stderr)
@@ -478,12 +527,17 @@ def main():
     print(f"{'='*60}")
     print(f"Taxonomy: {taxonomy_path}")
     print(f"Analysis dir: {analysis_dir}")
+    print(f"Domain profile: {profile_path}")
     print(f"Dry run: {args.dry_run}")
     print()
 
     # Parse taxonomy
     print("Parsing taxonomy...")
-    taxonomy_data = parse_taxonomy_md(taxonomy_path)
+    taxonomy_data = parse_taxonomy_md(
+        taxonomy_path,
+        profile_rules=profile_rules,
+        routing_fallback=routing_fallback,
+    )
     print(f"  - Paper methods: {len(taxonomy_data['paper_methods'])}")
     print(f"  - Bit-width mappings: {len(taxonomy_data['bit_width_map'])}")
     print(f"  - Paradigm mappings: {len(taxonomy_data['paradigm_map'])}")
@@ -511,9 +565,10 @@ def main():
 
     # Print routing rules summary
     print("\n--- Auto-generated Routing Rules ---")
-    for rule in taxonomy_data["routing_rules"]:
+    for idx, rule in enumerate(taxonomy_data["routing_rules"], start=1):
         keywords = rule.get("method_keywords", [])
-        print(f"  {rule['name']}: {rule['subsection']}")
+        rule_name = rule.get("name") or f"Rule {idx}"
+        print(f"  {rule_name}: {rule.get('subsection', 'N/A')}")
         if args.verbose and keywords:
             print(f"    Keywords: {', '.join(keywords[:5])}")
 

@@ -270,27 +270,27 @@ Use this when you want to grow your paper corpus with newer results.
 ```bash
 # 1. Re-search arXiv for new papers
 python3 tools/surveymind_run.py --stage arxiv-discover \
-  --survey-name ultra_low_bit \
-  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+  --survey-name graph_robustness \
+  --topic-keywords "graph neural network,robustness,distribution shift,benchmark"
 
 # 2. Re-stratify the updated corpus
 python3 tools/surveymind_run.py --stage corpus-extract --survey-name ultra_low_bit
 
 # 3. Re-run batch triage on all papers
 python3 tools/surveymind_run.py --stage batch-triage \
-  --survey-name ultra_low_bit \
-  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+  --survey-name graph_robustness \
+  --topic-keywords "graph neural network,robustness,distribution shift,benchmark"
 
 # 4. Download Tier1/2 PDFs before deep analysis
 python3 tools/surveymind_run.py --stage paper-download \
-  --survey-name ultra_low_bit \
+  --survey-name graph_robustness \
   --download-tier-scope tier1_tier2
 ```
 
 Then deep-analyze newly added papers with a Skill:
 
 ```bash
-> /paper-analysis "ultra low-bit LLM quantization"
+> /paper-analysis "graph neural network robustness"
 ```
 
 ### Use Case 2: Structure & Conclusion Convergence (regenerate taxonomy / gap / survey)
@@ -298,9 +298,9 @@ Then deep-analyze newly added papers with a Skill:
 Use this when your literature base is sufficient and you want to polish the survey toward submission-readiness.
 
 ```bash
-> /taxonomy-build "ultra low-bit LLM quantization"
-> /gap-identify "ultra low-bit LLM quantization"
-> /survey-write "ultra low-bit LLM quantization"
+> /taxonomy-build "graph neural network robustness"
+> /gap-identify "graph neural network robustness"
+> /survey-write "graph neural network robustness"
 ```
 
 ### Use Case 3: Rerun from Scratch Without Touching Existing Data
@@ -309,18 +309,18 @@ The safest approach: run the pipeline under a new survey name — old results st
 
 ```bash
 # Keep the old directory (survey_ultra_low_bit) intact
-# New results go to: surveys/survey_ultra_low_bit_rerun_20260327/
+# New results go to: surveys/survey_graph_robustness_rerun_20260327/
 
 # Step 1: brainstorm
 python3 tools/surveymind_run.py --stage brainstorm \
-  --survey-name ultra_low_bit_rerun_20260327 \
-  --scope-topic "Ultra-low bit quantization for LLMs" \
-  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+  --survey-name graph_robustness_rerun_20260327 \
+  --scope-topic "Robust learning for graph neural networks" \
+  --topic-keywords "graph neural network,robustness,distribution shift,adversarial"
 
 # Step 2: full pipeline rerun
 python3 tools/surveymind_run.py --stage all \
-  --survey-name ultra_low_bit_rerun_20260327 \
-  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit" \
+  --survey-name graph_robustness_rerun_20260327 \
+  --topic-keywords "graph neural network,robustness,distribution shift,adversarial" \
   --validation-strict
 ```
 

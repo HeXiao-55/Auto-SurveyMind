@@ -1,13 +1,14 @@
 ---
 name: paper-analysis
 description: "Analyze research papers using an 8-dimensional classification framework. Use when user says \"analyze paper\", \"classify this paper\", \"paper analysis\", or wants to extract structured information from academic papers for survey construction. Input: topic or paper document. Output: structured analysis in paper_analysis_results/"
-argument-hint: [paper-topic-or-url-or-arXiv-ID]
+argument-hint: "paper-topic-or-url-or-arXiv-ID"
 allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob, WebSearch, WebFetch, mcp__zotero__*, mcp__obsidian-vault__*
 ---
 
 # Paper Analysis Skill
 
 Analyzes research papers using a standardized 8-dimensional classification framework for survey construction.
+The concrete labels should be aligned with the active domain profile instead of hardcoded domain terms.
 
 ## Input
 
@@ -28,14 +29,16 @@ Analyzes research papers using a standardized 8-dimensional classification frame
 
 ### Dimension Definitions
 
-1. **Model Type**: LLM, MLLM/LVLM, MoE-LLM, SLM, VLM, Other
-2. **Method Category**: Representation Enhancement, Sparsity Exploitation, Knowledge Transfer, Activation/Pipeline Optimization, Hardware-Algorithm Co-design, Analysis, Other
-3. **Specific Method**: Learnable Scaling/Offset, Structured Sparsity, Distillation/Output Alignment, Rotation/Orthogonal Transform, Sigma-Delta/Error Diffusion, Hessian-guided Optimization, Low-rank Correction, KV/Activation-specific Quantization, Other
-4. **Training Paradigm**: QAT (Quantization-Aware Training), PTQ (Post-Training Quantization), Hybrid, From-Scratch Low-bit Pretraining, Other
-5. **Core Challenge**: Representation Capacity Limit, Outlier Sensitivity, Gradient Flow Disruption, Activation/KV Bottleneck, Hardware Deployment Mismatch, Other
-6. **Evaluation Focus**: Perplexity, Downstream Accuracy, End-to-end Throughput/Latency, Energy Efficiency, Cross-model Generalization, Cross-modal Generalization, Other
-7. **Hardware Co-design**: CPU Kernel/LUT Optimization, GPU Mixed-precision Execution Path, PIM/CIM Architecture, ASIC-friendly Bit Packing, Memory-bandwidth-oriented Design, No explicit co-design
+1. **Model Type**: The primary model/task family studied in the paper.
+2. **Method Category**: The high-level method family in the active survey profile.
+3. **Specific Method**: The concrete technique name or mechanism used by the paper.
+4. **Training Paradigm**: The optimization/training/deployment paradigm (if applicable).
+5. **Core Challenge**: The main bottleneck or problem the method addresses.
+6. **Evaluation Focus**: The primary metrics, tasks, or benchmarks emphasized.
+7. **Hardware Co-design**: Any explicit systems/hardware implementation coupling.
 8. **Summary**: 1-2 sentence core contribution summary
+
+Note: If a field label set is defined by the current profile, prefer profile labels over generic examples.
 
 ## Workflow
 
@@ -81,6 +84,7 @@ For each dimension:
 2. **Evidence binding**: Quote the specific text from the paper that supports the classification
 3. Note the evidence type (Abstract/Method/Experiment/Conclusion)
 4. Assign confidence (High/Med/Low)
+5. If the paper does not fit existing profile labels, mark as `Other` and explain why.
 
 ### Step 5: Generate Evidence Table
 
@@ -127,6 +131,7 @@ paper_analysis_results/{paper_id}_analysis.md
 - **Distinguish claims**: Clearly separate author claims from your interpretation
 - **Note limitations**: If a paper only tests on small models, say so
 - **机器可读格式**: Output must be parseable by downstream skills (taxonomy-build, gap-identify)
+- **Profile alignment**: Use the active profile's taxonomy vocabulary when assigning categories
 
 ## Example Output Structure
 
@@ -144,10 +149,10 @@ paper_analysis_results/{paper_id}_analysis.md
 ## 8-Dimensional Classification
 
 ### 1. Model Type
-**Classification**: LLM
+**Classification**: [profile-aligned category]
 **Evidence**:
 - Source: Abstract
-- Quote: "We evaluate on large language models including LLaMA-7B and Mistral-7B"
+- Quote: "{{exact excerpt from the paper}}"
 
 ### 2. Method Category
 ...

@@ -58,6 +58,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from domain_profile import (
+    DomainProfileError,
+    load_domain_profile,
+    profile_context_keywords,
+    profile_core_keywords,
+    profile_keywords,
+)
+
 # ─── arXiv API ────────────────────────────────────────────────────────────────
 
 ARXIV_API = "http://export.arxiv.org/api/query"
@@ -110,26 +118,16 @@ def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> Optional[dict]:
 
 # ─── Relevance Triage ───────────────────────────────────────────────────────
 
-# Default keyword sets for ultra-low bit LLM quantization (used as fallback
-# when --topic-keywords is not provided).  These are only here so the tool
-# runs without requiring CLI args; always prefer passing explicit keywords.
-DEFAULT_KEYWORDS = [
-    "quantization", "quantize", "quantiz", "low-bit", "ultra-low", "sub-bit",
-    "binary", "ternary", "1-bit", "1.58-bit", "2-bit", "4-bit",
-    "llm", "large language model", "transformer",
-    "post-training", "qat", "ptq",
-    "outlier", "pruning", "prune",
-    "awq", "gptq", "spqr", "quip", "quarot", "smoothquant",
-    "bitnet", "ternaryllm", "tequila",
-    "weight compression", "model compression",
-]
+DEFAULT_KEYWORDS = ["survey", "review", "benchmark", "evaluation", "method", "model"]
 
 
 def compute_relevance_score(
     title: str,
     abstract: str = "",
-    categories: list[str] = None,
-    keywords: list[str] = None,
+    categories: list[str] | None = None,
+    keywords: list[str] | None = None,
+    core_keywords: list[str] | None = None,
+    context_keywords: list[str] | None = None,
 ) -> tuple[int, list[str]]:
     """
     Score a paper 0–3 for relevance to the survey topic.
@@ -144,20 +142,26 @@ def compute_relevance_score(
     """
     categories = categories or []
     keywords = keywords or DEFAULT_KEYWORDS
+    core_keywords = core_keywords or []
+    context_keywords = context_keywords or []
     text = (title + " " + (abstract or "")).lower()
 
     matched = [kw for kw in keywords if kw.lower() in text]
 
-    # Core signals: quantization + LLM/transformer
-    core_kws = {"quantization", "quantiz", "quantize", "low-bit", "binary",
-                 "ternary", "1-bit", "1.58-bit", "2-bit", "sub-bit", "post-training"}
-    core_matches = {k.lower() for k in matched} & core_kws
-    has_llm = any(k in text for k in ["llm", "large language model", "transformer",
-                                        "language model", "bert", "gpt", "lama"])
+    if core_keywords or context_keywords:
+        core_hits = [kw for kw in core_keywords if kw.lower() in text]
+        context_hits = [kw for kw in context_keywords if kw.lower() in text]
+        if core_hits and context_hits:
+            return 3, matched
+        if core_hits or len(context_hits) >= 2:
+            return 2, matched
+        if matched:
+            return 1, matched
+        return 0, []
 
-    if core_matches and has_llm:
+    if len(matched) >= 3:
         return 3, matched
-    if core_matches:
+    if len(matched) >= 2:
         return 2, matched
     if matched:
         return 1, matched
@@ -200,6 +204,8 @@ def build_corpus_report(
     arxiv_json_path: str,
     papers_dir: str = "papers",
     topic_keywords: Optional[list[str]] = None,
+    core_keywords: Optional[list[str]] = None,
+    context_keywords: Optional[list[str]] = None,
     enrich: bool = False,
     enrich_batch_size: int = 5,
     enrich_delay: float = 3.0,
@@ -270,6 +276,8 @@ def build_corpus_report(
             abstract=record["abstract"],
             categories=record["categories"],
             keywords=keyword_list,
+            core_keywords=core_keywords,
+            context_keywords=context_keywords,
         )
         record["score"] = score
         record["tier"] = relevance_tier(score)
@@ -307,6 +315,8 @@ def build_corpus_report(
                             abstract=rec["abstract"],
                             categories=rec["categories"],
                             keywords=keyword_list,
+                            core_keywords=core_keywords,
+                            context_keywords=context_keywords,
                         )
                         old_tier = rec["tier"]
                         rec["score"] = score
@@ -420,8 +430,13 @@ def main():
     )
     ap.add_argument(
         "--topic-keywords", "-k",
-        default="quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit",
-        help="Comma-separated topic keywords for relevance scoring"
+        default="",
+        help="Comma-separated topic keywords for relevance scoring (overrides profile keywords)"
+    )
+    ap.add_argument(
+        "--domain-profile",
+        default="templates/domain_profiles/general_profile.json",
+        help="Domain profile JSON path"
     )
     ap.add_argument(
         "--output", "-o", default="corpus_report",
@@ -460,21 +475,32 @@ def main():
         print(f"ERROR: input file not found: {input_path}", file=sys.stderr)
         sys.exit(1)
 
+    try:
+        profile, profile_path = load_domain_profile(args.domain_profile, root_dir)
+    except DomainProfileError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    keywords = parse_keywords(args.topic_keywords) or profile_keywords(profile)
+    core_keywords = profile_core_keywords(profile)
+    context_keywords = profile_context_keywords(profile)
+
     print(f"SurveyMind arxiv_json_extractor")
     print(f"  Input:   {input_path}")
     print(f"  Papers:  {papers_dir}")
-    print(f"  Keywords: {args.topic_keywords}")
+    print(f"  Profile: {profile_path}")
+    print(f"  Keywords: {','.join(keywords[:8])}")
     print(f"  Dry run: {args.dry_run}")
     if args.enrich_from_arxiv and not args.dry_run:
         print(f"  Enrich:  yes (batch={args.enrich_batch_size}, delay={args.enrich_delay}s)")
-
-    keywords = parse_keywords(args.topic_keywords)
 
     try:
         report = build_corpus_report(
             arxiv_json_path=str(input_path),
             papers_dir=str(papers_dir),
             topic_keywords=keywords,
+            core_keywords=core_keywords,
+            context_keywords=context_keywords,
             enrich=args.enrich_from_arxiv and not args.dry_run,
             enrich_batch_size=args.enrich_batch_size,
             enrich_delay=args.enrich_delay,

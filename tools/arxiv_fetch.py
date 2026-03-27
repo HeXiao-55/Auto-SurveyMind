@@ -22,6 +22,7 @@ import json
 import re
 import sys
 import time
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,12 +30,14 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 _ATOM_NS = "http://www.w3.org/2005/Atom"
-_API_BASE = "http://export.arxiv.org/api/query"
+_API_BASE = "https://export.arxiv.org/api/query"
 _USER_AGENT = (
     "arxiv-skill/1.0 "
     "(github.com/wanshuiyin/Auto-claude-code-research-in-sleep)"
 )
 _MIN_PDF_BYTES = 10_240
+_SEARCH_TIMEOUT_SECONDS = 45
+_SEARCH_MAX_RETRIES = 4
 _NEW_STYLE_ID_RE = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$")
 _OLD_STYLE_ID_RE = re.compile(r"^[A-Za-z.-]+/\d{7}(v\d+)?$")
 
@@ -76,10 +79,30 @@ def _api_url(query: str, max_results: int, start: int) -> str:
 
 
 def _fetch_atom(url: str) -> ET.Element:
-    """Fetch an arXiv Atom feed and return the parsed XML root."""
+    """Fetch an arXiv Atom feed with retry/backoff and return parsed XML root."""
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return ET.fromstring(resp.read())
+    last_exc: Exception | None = None
+
+    for attempt in range(1, _SEARCH_MAX_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=_SEARCH_TIMEOUT_SECONDS) as resp:
+                return ET.fromstring(resp.read())
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            # Retry on transient HTTP statuses.
+            if exc.code in (429, 500, 502, 503, 504) and attempt < _SEARCH_MAX_RETRIES:
+                time.sleep(min(2 ** attempt, 12))
+                continue
+            raise
+        except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
+            last_exc = exc
+            if attempt < _SEARCH_MAX_RETRIES:
+                time.sleep(min(2 ** attempt, 12))
+                continue
+            raise
+
+    # Should never reach here because loop either returns or raises.
+    raise RuntimeError(f"Failed to fetch arXiv Atom feed after retries: {last_exc}")
 
 
 def _parse_entry(entry: ET.Element) -> dict:

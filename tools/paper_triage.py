@@ -46,6 +46,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from domain_profile import (
+    DomainProfileError,
+    load_domain_profile,
+    profile_context_keywords,
+    profile_core_keywords,
+    profile_keywords,
+    profile_routing_fallback,
+    profile_routing_rules,
+)
+
 # ─── arXiv API ────────────────────────────────────────────────────────────────
 
 ARXIV_API = "http://export.arxiv.org/api/query"
@@ -101,16 +111,7 @@ def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> Optional[dict]:
 
 # ─── Relevance scoring ────────────────────────────────────────────────────────
 
-DEFAULT_KEYWORDS = [
-    "quantization", "quantize", "quantiz", "low-bit", "ultra-low", "sub-bit",
-    "binary", "ternary", "1-bit", "1.58-bit", "2-bit", "4-bit",
-    "llm", "large language model", "transformer", "language model",
-    "post-training", "qat", "ptq",
-    "outlier", "pruning",
-    "awq", "gptq", "spqr", "quip", "quarot", "smoothquant",
-    "bitnet", "ternaryllm",
-    "weight compression", "model compression",
-]
+DEFAULT_KEYWORDS = ["survey", "review", "benchmark", "evaluation", "method", "model"]
 
 
 def compute_relevance_score(
@@ -118,23 +119,32 @@ def compute_relevance_score(
     abstract: str = "",
     categories: list[str] = None,
     keywords: list[str] = None,
+    core_keywords: list[str] = None,
+    context_keywords: list[str] = None,
 ) -> tuple[int, list[str]]:
     """Score 0–3. Returns (score, matched_keywords)."""
     categories = categories or []
     keywords = keywords or DEFAULT_KEYWORDS
+    core_keywords = core_keywords or []
+    context_keywords = context_keywords or []
     text = (title + " " + (abstract or "")).lower()
 
     matched = [kw for kw in keywords if kw.lower() in text]
 
-    core_kws = {"quantization", "quantiz", "quantize", "low-bit", "binary",
-                "ternary", "1-bit", "1.58-bit", "2-bit", "sub-bit", "post-training"}
-    core_matches = {k.lower() for k in matched} & core_kws
-    has_llm = any(k in text for k in ["llm", "large language model", "transformer",
-                                        "language model", "bert", "gpt", "lama"])
+    if core_keywords or context_keywords:
+        core_hits = [kw for kw in core_keywords if kw.lower() in text]
+        context_hits = [kw for kw in context_keywords if kw.lower() in text]
+        if core_hits and context_hits:
+            return 3, matched
+        if core_hits or len(context_hits) >= 2:
+            return 2, matched
+        if matched:
+            return 1, matched
+        return 0, []
 
-    if core_matches and has_llm:
+    if len(matched) >= 3:
         return 3, matched
-    if core_matches:
+    if len(matched) >= 2:
         return 2, matched
     if matched:
         return 1, matched
@@ -143,7 +153,12 @@ def compute_relevance_score(
 
 # ─── 12-field classification ─────────────────────────────────────────────────
 
-def classify_12field(meta: dict, keywords: list[str]) -> dict:
+def classify_12field(
+    meta: dict,
+    keywords: list[str],
+    core_keywords: list[str] | None = None,
+    context_keywords: list[str] | None = None,
+) -> dict:
     """
     Perform 12-field classification from arXiv metadata (no PDF needed).
 
@@ -155,6 +170,8 @@ def classify_12field(meta: dict, keywords: list[str]) -> dict:
         abstract=meta.get("abstract", ""),
         categories=meta.get("categories", []),
         keywords=keywords,
+        core_keywords=core_keywords,
+        context_keywords=context_keywords,
     )
 
     fields = {}
@@ -319,37 +336,27 @@ def classify_12field(meta: dict, keywords: list[str]) -> dict:
 
 DEFAULT_ROUTING_RULES: list[dict] = [
     {"training": ["QAT", "From-Scratch"], "method": ["Binary", "binarization", "1-bit"], "bits": ["1-bit"],
-     "subsection": "05/01_binary_networks_1_bit"},
-    {"training": ["QAT", "From-Scratch"], "method": ["Ternary", "ternarization", "1.58-bit"], "bits": ["1.58-bit"],
-     "subsection": "05/02_ternary_networks_1_58_bit"},
-    {"training": ["QAT"], "method": ["curvature", "hessian", "low-rank", "sparse", "co-training"], "bits": [],
-     "subsection": "05/03_recent_qat_advances"},
-    {"training": ["PTQ"], "method": ["Ultra-low", "sub-2-bit", "structured", "mask", "trit-plane",
-                                     "dual-scale", "deviation", "block reconstruction", "layer-wise",
-                                     "butterfly", "rotation"], "bits": ["1-bit", "1.61-bit", "sub-2-bit", "1.58-bit"],
-     "subsection": "06/01_ultra_low_ptq_sub_2_bit"},
-    {"training": ["PTQ"], "method": ["2-bit", "INT2", "progressive"], "bits": ["2-bit"],
-     "subsection": "06/03_2bit_quantization_methods"},
-    {"training": ["PTQ"], "method": ["standard", "4-bit", "per-channel", "per-token", "mixed-precision"], "bits": ["3-bit", "4-bit"],
-     "subsection": "06/04_transform_based_and_mixed_precision_methods"},
-    {"training": ["PTQ"], "method": [], "bits": [],
-     "subsection": "06/01_ultra_low_ptq_sub_2_bit"},
-    {"training": [], "method": ["outlier", "smoothquant", "quarot", "quip", "prefix", "rotation",
-                                 "redistribution", "migration", "asymmetric"], "bits": [],
-     "subsection": "07/02_categorization_of_outlier_handling_methods"},
-    {"training": [], "method": ["CPU", "GPU", "ASIC", "CIM", "PIM", "kernel", "hardware",
-                                "inference", "SIMD", "async", "dequantization"], "bits": [],
-     "subsection": "08/01_cpu_implementations"},
-    {"training": [], "method": ["multimodal", "MLLM", "VLM", "VLA", "agent", "KV cache"], "bits": [],
-     "subsection": "11/01_vision_language_action_models"},
-    {"training": [], "method": ["benchmark", "perplexity", "accuracy", "latency", "throughput", "energy", "memory"], "bits": [],
-     "subsection": "09/02_performance_comparison"},
-    {"training": [], "method": ["gap", "limitation", "challenge", "generalization", "theory", "standardization"], "bits": [],
-     "subsection": "10/01_gap_standardized_protocols"},
+     "subsection": "05/01_method_training_strategies"},
+    {"training": ["QAT", "From-Scratch"], "method": ["Ternary", "ternarization", "1.58-bit"], "bits": ["1.58-bit", "ternary"],
+     "subsection": "05/02_method_variants"},
+    {"training": ["PTQ"], "method": ["reconstruction", "calibrate", "layer-wise", "rotation"], "bits": [],
+     "subsection": "06/01_post_training_methods"},
+    {"training": ["PTQ"], "method": ["mixed-precision", "4-bit", "3-bit", "2-bit"], "bits": ["2-bit", "3-bit", "4-bit"],
+     "subsection": "06/02_precision_design_space"},
+    {"training": [], "method": ["outlier", "normalization", "stability", "generalization"], "bits": [],
+     "subsection": "07/01_stability_and_generalization"},
+    {"training": [], "method": ["CPU", "GPU", "ASIC", "FPGA", "hardware", "kernel", "throughput"], "bits": [],
+     "subsection": "08/01_system_and_hardware"},
+    {"training": [], "method": ["multimodal", "vision", "language", "agent"], "bits": [],
+     "subsection": "11/01_cross_domain_applications"},
+    {"training": [], "method": ["benchmark", "accuracy", "latency", "memory", "energy", "efficiency"], "bits": [],
+     "subsection": "09/01_evaluation_protocols"},
+    {"training": [], "method": ["gap", "limitation", "challenge", "open problem"], "bits": [],
+     "subsection": "10/01_open_challenges"},
 ]
 
 
-def route_paper(classification: dict, rules: list[dict]) -> str:
+def route_paper(classification: dict, rules: list[dict], fallback_subsection: str) -> str:
     """Route a classified paper to its survey_trace subsection."""
     training = (classification.get("training") or "").upper()
     method = (classification.get("method_category") + " " +
@@ -371,7 +378,7 @@ def route_paper(classification: dict, rules: list[dict]) -> str:
 
         return rule["subsection"]
 
-    return "02/01_general_model_quantization_surveys"
+    return fallback_subsection
 
 
 def load_routing_config(path: str) -> list[dict]:
@@ -453,19 +460,35 @@ def main():
     ap = argparse.ArgumentParser(description="SurveyMind Single-Paper 12-Field Triage")
     ap.add_argument("arxiv_ids", nargs="+", help="One or more arXiv IDs (e.g. 2210.17323)")
     ap.add_argument("--routing-config", "-r", help="JSON routing config")
+    ap.add_argument("--domain-profile",
+                   default="templates/domain_profiles/general_profile.json",
+                   help="Domain profile JSON path")
     ap.add_argument("--topic-keywords", "-k",
-                   default="quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit",
-                   help="Comma-separated topic keywords")
+                   default="",
+                   help="Comma-separated topic keywords (overrides profile keywords)")
     ap.add_argument("--format", "-f", choices=["text", "json"], default="text",
                    help="Output format (default: text)")
     ap.add_argument("--verbose", "-v", action="store_true")
 
     args = ap.parse_args()
 
-    keywords = [k.strip() for k in args.topic_keywords.split(",") if k.strip()]
-    rules = load_routing_config(args.routing_config or "")
+    tools_dir = Path(__file__).parent
+    root_dir = tools_dir.parent
+    try:
+        profile, profile_path = load_domain_profile(args.domain_profile, root_dir)
+    except DomainProfileError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
-    print(f"SurveyMind paper_triage — {len(args.arxiv_ids)} paper(s), keywords: {args.topic_keywords[:50]}...")
+    keywords = [k.strip() for k in args.topic_keywords.split(",") if k.strip()] or profile_keywords(profile)
+    core_keywords = profile_core_keywords(profile)
+    context_keywords = profile_context_keywords(profile)
+    rules = load_routing_config(args.routing_config or "") if args.routing_config else profile_routing_rules(profile)
+    fallback_subsection = profile_routing_fallback(profile, "02/01_general_related_work")
+
+    shown_keywords = ",".join(keywords[:6])
+    print(f"SurveyMind paper_triage — {len(args.arxiv_ids)} paper(s), keywords: {shown_keywords}")
+    print(f"Domain profile: {profile_path}")
     print()
 
     for arid in args.arxiv_ids:
@@ -477,8 +500,13 @@ def main():
             print(f"ERROR: Could not fetch {arid}: {meta.get('_error', 'unknown error')}", file=sys.stderr)
             continue
 
-        fields = classify_12field(meta, keywords)
-        subsection = route_paper(fields, rules)
+        fields = classify_12field(
+            meta,
+            keywords,
+            core_keywords=core_keywords,
+            context_keywords=context_keywords,
+        )
+        subsection = route_paper(fields, rules, fallback_subsection)
 
         if args.format == "json":
             print(format_json(arid, meta, fields, subsection))

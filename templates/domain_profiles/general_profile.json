@@ -1,0 +1,103 @@
+{
+  "name": "general",
+  "version": "1.0",
+  "relevance": {
+    "keywords": [
+      "survey",
+      "review",
+      "benchmark",
+      "evaluation",
+      "dataset",
+      "method",
+      "framework",
+      "model",
+      "training",
+      "inference",
+      "robustness",
+      "efficiency",
+      "optimization"
+    ],
+    "core_keywords": [
+      "method",
+      "model",
+      "training",
+      "inference"
+    ],
+    "context_keywords": [
+      "benchmark",
+      "evaluation",
+      "dataset",
+      "framework",
+      "survey",
+      "review"
+    ]
+  },
+  "routing": {
+    "fallback_subsection": "02/01_general_related_work",
+    "framework_anchor_terms": [
+      "method",
+      "model",
+      "benchmark",
+      "evaluation",
+      "survey",
+      "training",
+      "inference"
+    ],
+    "rules": [
+      {
+        "training": ["QAT", "From-Scratch"],
+        "method": ["Binary", "binarization", "1-bit"],
+        "bits": ["1-bit"],
+        "subsection": "05/01_method_training_strategies"
+      },
+      {
+        "training": ["QAT", "From-Scratch"],
+        "method": ["Ternary", "ternarization", "1.58-bit"],
+        "bits": ["1.58-bit", "ternary"],
+        "subsection": "05/02_method_variants"
+      },
+      {
+        "training": ["PTQ"],
+        "method": ["reconstruction", "calibrate", "layer-wise", "rotation"],
+        "bits": [],
+        "subsection": "06/01_post_training_methods"
+      },
+      {
+        "training": ["PTQ"],
+        "method": ["mixed-precision", "4-bit", "3-bit", "2-bit"],
+        "bits": ["2-bit", "3-bit", "4-bit"],
+        "subsection": "06/02_precision_design_space"
+      },
+      {
+        "training": [],
+        "method": ["outlier", "normalization", "stability", "generalization"],
+        "bits": [],
+        "subsection": "07/01_stability_and_generalization"
+      },
+      {
+        "training": [],
+        "method": ["CPU", "GPU", "ASIC", "FPGA", "hardware", "kernel", "throughput"],
+        "bits": [],
+        "subsection": "08/01_system_and_hardware"
+      },
+      {
+        "training": [],
+        "method": ["multimodal", "vision", "language", "agent"],
+        "bits": [],
+        "subsection": "11/01_cross_domain_applications"
+      },
+      {
+        "training": [],
+        "method": ["benchmark", "accuracy", "latency", "memory", "energy", "efficiency"],
+        "bits": [],
+        "subsection": "09/01_evaluation_protocols"
+      },
+      {
+        "training": [],
+        "method": ["gap", "limitation", "challenge", "open problem"],
+        "bits": [],
+        "subsection": "10/01_open_challenges"
+      }
+    ]
+  }
+}

@@ -56,16 +56,14 @@ def _build_queries(
 		if term and term not in seeds:
 			seeds.append(term)
 
-	default_high_recall = [
-		"large language model quantization",
-		"ultra-low bit LLM",
-		"1-bit LLM",
-		"ternary LLM",
-		"low-bit transformer",
-	]
-	for q in default_high_recall:
-		if q not in seeds:
-			seeds.append(q)
+	# Generic query expansion only from user-defined scope/keywords.
+	# No domain-specific fallback terms should be injected here.
+	if seeds:
+		base = seeds[0]
+		for term in seeds[1:]:
+			combo = f"{base} {term}".strip()
+			if combo and combo not in seeds:
+				seeds.append(combo)
 
 	return seeds[:max_queries]
 
@@ -99,11 +97,20 @@ def run_discovery(
 ) -> list[dict]:
 	merged: list[dict] = []
 	for query in queries:
+		print(f"  -> discovering query: {query}")
 		got = 0
 		start = 0
 		while got < max_per_query:
 			batch = min(page_size, max_per_query - got)
-			results = search(query, max_results=batch, start=start)
+			try:
+				results = search(query, max_results=batch, start=start)
+			except Exception as exc:
+				# Keep high-recall behavior: one query timeout should not fail whole stage.
+				print(
+					f"  WARNING: query failed (query={query}, start={start}, batch={batch}): {exc}",
+					file=sys.stderr,
+				)
+				break
 			if not results:
 				break
 			for item in results:
@@ -181,6 +188,13 @@ def main() -> int:
 		page_size=args.page_size,
 		delay=args.delay,
 	)
+	if not merged:
+		print(
+			"ERROR: arXiv discovery returned 0 papers across all queries. "
+			"Likely network timeout or temporary arXiv service issue.",
+			file=sys.stderr,
+		)
+		return 1
 	merged = _merge_query_hits(merged)
 	deduped = _dedup(merged)
 

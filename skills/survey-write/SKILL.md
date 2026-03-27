@@ -1,8 +1,7 @@
 ---
 name: survey-write
 description: "Generate a structured survey document from taxonomy and gap analysis. Use when user says \"write survey\", \"generate survey\", \"create survey draft\", or needs to synthesize research into a comprehensive survey document. Input: taxonomy.md + gap_analysis.md. Output: SURVEY_DRAFT.md"
-argument-hint: [survey-topic]
-allowed-tools: Bash(*), Read, Write, Edit, Grep, Glob
+argument-hint: "survey-topic"
 ---
 
 # Survey Write Skill
@@ -11,7 +10,7 @@ Generates a comprehensive survey document from taxonomy and gap analysis.
 
 ## Input
 
-**$ARGUMENTS**: The survey topic (e.g., "Efficient LLM Inference", "Model Quantization")
+**$ARGUMENTS**: The survey topic (e.g., "Graph Robustness", "Scientific Foundation Models")
 
 **Expected Input Files**:
 1. `taxonomy.md` - hierarchical taxonomy (from `/taxonomy-build`)
@@ -37,7 +36,7 @@ Generates a comprehensive survey document from taxonomy and gap analysis.
 ### Step 2: Parse Taxonomy
 
 Extract from `taxonomy.md`:
-- Hierarchical structure (Method Categories → Submethods → Specific Techniques)
+- Hierarchical structure (Method Categories -> Submethods -> Specific Techniques)
 - Paper counts per category
 - Coverage statistics
 - Interconnections and patterns
@@ -175,21 +174,21 @@ Use the following format for citing papers:
 
 ```markdown
 ---
-title: "Survey on Efficient LLM Inference"
-topic: "Efficient LLM Inference"
-date: "2024-03-25"
+title: "Survey on [Topic]"
+topic: "[Topic]"
+date: "YYYY-MM-DD"
 ---
 
-# Survey on Efficient LLM Inference
+# Survey on [Topic]
 
 ## Abstract
 
-This survey provides a comprehensive review of methods for efficient LLM inference...
+This survey provides a comprehensive review of methods for [topic]...
 
 ## 1. Introduction
 
 ### 1.1 Motivation
-Large language models (LLMs) have achieved remarkable success...
+[Topic background sentence]...
 ```
 
 ---

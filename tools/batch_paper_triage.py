@@ -2,7 +2,7 @@
 """
 batch_paper_triage.py — SurveyMind Batch Paper Triage
 
-Reads an arxiv JSON file, runs 12-field classification on every paper,
+Reads an arxiv JSON file, runs multi-field classification on every paper,
 and produces a complete coverage report mapping all papers to survey_trace
 subsections.
 
@@ -47,6 +47,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from domain_profile import (
+    DomainProfileError,
+    load_domain_profile,
+    profile_context_keywords,
+    profile_core_keywords,
+    profile_framework_anchor_terms,
+    profile_keywords,
+    profile_routing_fallback,
+    profile_routing_rules,
+)
+
 # ─── arXiv API ────────────────────────────────────────────────────────────────
 
 ARXIV_API = "http://export.arxiv.org/api/query"
@@ -75,11 +86,11 @@ def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> Optional[dict]:
                 for c in entry.findall(f"{{{_ATOM_NS}}}category")
             ]
             summary_el = entry.find(f"{{{_ATOM_NS}}}summary")
-            abstract = summary_el.text.strip() if summary_el is not None else ""
+            abstract = (summary_el.text or "").strip() if summary_el is not None else ""
             published_el = entry.find(f"{{{_ATOM_NS}}}published")
-            published = published_el.text[:7] if published_el is not None else ""
+            published = (published_el.text or "")[:7] if published_el is not None else ""
             title_el = entry.find(f"{{{_ATOM_NS}}}title")
-            title = title_el.text.strip() if title_el is not None else ""
+            title = (title_el.text or "").strip() if title_el is not None else ""
             pdf_link_el = entry.find(f"{{{_ATOM_NS}}}link[@title='pdf']")
             pdf_url = pdf_link_el.get("href", "") if pdf_link_el is not None else ""
             return {
@@ -101,47 +112,57 @@ def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> Optional[dict]:
 
 # ─── Relevance scoring ────────────────────────────────────────────────────────
 
-DEFAULT_KEYWORDS = [
-    "quantization", "quantize", "quantiz", "low-bit", "ultra-low", "sub-bit",
-    "binary", "ternary", "1-bit", "1.58-bit", "2-bit", "4-bit",
-    "llm", "large language model", "transformer", "language model",
-    "post-training", "qat", "ptq",
-    "outlier", "pruning",
-    "awq", "gptq", "spqr", "quip", "quarot", "smoothquant",
-    "bitnet", "ternaryllm",
-    "weight compression", "model compression",
-]
+DEFAULT_KEYWORDS = ["survey", "review", "benchmark", "evaluation", "method", "model"]
 
 
 def compute_relevance_score(
-    title: str, abstract: str = "", categories: list[str] = None,
-    keywords: list[str] = None,
+    title: str, abstract: str = "", categories: list[str] | None = None,
+    keywords: list[str] | None = None,
+    core_keywords: list[str] | None = None,
+    context_keywords: list[str] | None = None,
 ) -> tuple[int, list[str]]:
     categories = categories or []
     keywords = keywords or DEFAULT_KEYWORDS
+    core_keywords = core_keywords or []
+    context_keywords = context_keywords or []
     text = (title + " " + (abstract or "")).lower()
     matched = [kw for kw in keywords if kw.lower() in text]
-    core_kws = {"quantization", "quantiz", "quantize", "low-bit", "binary",
-                "ternary", "1-bit", "1.58-bit", "2-bit", "sub-bit", "post-training"}
-    core_matches = {k.lower() for k in matched} & core_kws
-    has_llm = any(k in text for k in ["llm", "large language model", "transformer",
-                                        "language model", "bert", "gpt", "lama"])
-    if core_matches and has_llm:
+
+    if core_keywords or context_keywords:
+        core_hits = [kw for kw in core_keywords if kw.lower() in text]
+        context_hits = [kw for kw in context_keywords if kw.lower() in text]
+        if core_hits and context_hits:
+            return 3, matched
+        if core_hits or len(context_hits) >= 2:
+            return 2, matched
+        if matched:
+            return 1, matched
+        return 0, []
+
+    if len(matched) >= 3:
         return 3, matched
-    if core_matches:
+    if len(matched) >= 2:
         return 2, matched
     if matched:
         return 1, matched
     return 0, []
 
 
-# ─── 12-field classification ─────────────────────────────────────────────────
+# ─── multi-field classification ─────────────────────────────────────────────────
 
-def classify_12field(meta: dict, keywords: list[str]) -> dict:
+def classify_12field(
+    meta: dict,
+    keywords: list[str],
+    core_keywords: list[str] | None = None,
+    context_keywords: list[str] | None = None,
+) -> dict:
     text = (meta.get("title", "") + " " + meta.get("abstract", "")).lower()
     score, matched_kws = compute_relevance_score(
         title=meta.get("title", ""), abstract=meta.get("abstract", ""),
-        categories=meta.get("categories", []), keywords=keywords)
+        categories=meta.get("categories", []), keywords=keywords,
+        core_keywords=core_keywords,
+        context_keywords=context_keywords,
+    )
 
     fields = {}
 
@@ -287,41 +308,33 @@ def classify_12field(meta: dict, keywords: list[str]) -> dict:
 
 DEFAULT_ROUTING_RULES: list[dict] = [
     {"training": ["QAT", "From-Scratch"], "method": ["Binary", "binarization", "1-bit"], "bits": ["1-bit"],
-     "subsection": "05/01_binary_networks_1_bit"},
-    {"training": ["QAT", "From-Scratch"], "method": ["Ternary", "ternarization", "1.58-bit"], "bits": ["1.58-bit"],
-     "subsection": "05/02_ternary_networks_1_58_bit"},
-    {"training": ["QAT"], "method": ["curvature", "hessian", "low-rank", "sparse", "co-training"], "bits": [],
-     "subsection": "05/03_recent_qat_advances"},
-    {"training": ["PTQ"], "method": ["Ultra-low", "sub-2-bit", "structured", "mask", "trit-plane",
-                                     "dual-scale", "deviation", "block reconstruction", "layer-wise",
-                                     "butterfly", "rotation"], "bits": ["1-bit", "1.61-bit", "sub-2-bit", "1.58-bit"],
-     "subsection": "06/01_ultra_low_ptq_sub_2_bit"},
-    {"training": ["PTQ"], "method": ["2-bit", "INT2", "progressive"], "bits": ["2-bit"],
-     "subsection": "06/03_2bit_quantization_methods"},
-    {"training": ["PTQ"], "method": ["standard", "4-bit", "per-channel", "per-token", "mixed-precision"], "bits": ["3-bit", "4-bit"],
-     "subsection": "06/04_transform_based_and_mixed_precision_methods"},
-    {"training": ["PTQ"], "method": [], "bits": [],
-     "subsection": "06/01_ultra_low_ptq_sub_2_bit"},
-    {"training": [], "method": ["outlier", "smoothquant", "quarot", "quip", "prefix", "rotation",
-                                 "redistribution", "migration", "asymmetric"], "bits": [],
-     "subsection": "07/02_categorization_of_outlier_handling_methods"},
-    {"training": [], "method": ["CPU", "GPU", "ASIC", "CIM", "PIM", "kernel", "hardware",
-                                "inference", "SIMD", "async", "dequantization"], "bits": [],
-     "subsection": "08/01_cpu_implementations"},
-    {"training": [], "method": ["multimodal", "MLLM", "VLM", "VLA", "agent", "KV cache"], "bits": [],
-     "subsection": "11/01_vision_language_action_models"},
-    {"training": [], "method": ["benchmark", "perplexity", "accuracy", "latency", "throughput", "energy", "memory"], "bits": [],
-     "subsection": "09/02_performance_comparison"},
-    {"training": [], "method": ["gap", "limitation", "challenge", "generalization", "theory", "standardization"], "bits": [],
-     "subsection": "10/01_gap_standardized_protocols"},
+     "subsection": "05/01_method_training_strategies"},
+    {"training": ["QAT", "From-Scratch"], "method": ["Ternary", "ternarization", "1.58-bit"], "bits": ["1.58-bit", "ternary"],
+     "subsection": "05/02_method_variants"},
+    {"training": ["PTQ"], "method": ["reconstruction", "calibrate", "layer-wise", "rotation"], "bits": [],
+     "subsection": "06/01_post_training_methods"},
+    {"training": ["PTQ"], "method": ["mixed-precision", "4-bit", "3-bit", "2-bit"], "bits": ["2-bit", "3-bit", "4-bit"],
+     "subsection": "06/02_precision_design_space"},
+    {"training": [], "method": ["outlier", "normalization", "stability", "generalization"], "bits": [],
+     "subsection": "07/01_stability_and_generalization"},
+    {"training": [], "method": ["CPU", "GPU", "ASIC", "FPGA", "hardware", "kernel", "throughput"], "bits": [],
+     "subsection": "08/01_system_and_hardware"},
+    {"training": [], "method": ["multimodal", "vision", "language", "agent"], "bits": [],
+     "subsection": "11/01_cross_domain_applications"},
+    {"training": [], "method": ["benchmark", "accuracy", "latency", "memory", "energy", "efficiency"], "bits": [],
+     "subsection": "09/01_evaluation_protocols"},
+    {"training": [], "method": ["gap", "limitation", "challenge", "open problem"], "bits": [],
+     "subsection": "10/01_open_challenges"},
 ]
 
 
-def route_paper(classification: dict, rules: list[dict]) -> str:
+def route_paper(classification: dict, rules: list[dict], fallback_subsection: str) -> str:
     training = (classification.get("training") or "").upper()
-    method = (classification.get("method_category") + " " +
-              classification.get("specific_method") + " " +
-              classification.get("general_method")).upper()
+    method = (
+        str(classification.get("method_category") or "") + " " +
+        str(classification.get("specific_method") or "") + " " +
+        str(classification.get("general_method") or "")
+    ).upper()
     bits = (classification.get("bit_scope") or "").upper()
     for rule in rules:
         rt = [r.upper() for r in rule.get("training", [])]
@@ -334,10 +347,10 @@ def route_paper(classification: dict, rules: list[dict]) -> str:
         if rb and not any(b in bits for b in rb):
             continue
         return rule["subsection"]
-    return "02/01_general_model_quantization_surveys"
+    return fallback_subsection
 
 
-def build_framework_vocabulary(rules: list[dict]) -> set[str]:
+def build_framework_vocabulary(rules: list[dict], anchor_terms: list[str] | None = None) -> set[str]:
     """Build a loose keyword pool from routing rules for framework-aware pruning."""
     vocab: set[str] = set()
     for rule in rules:
@@ -348,8 +361,10 @@ def build_framework_vocabulary(rules: list[dict]) -> set[str]:
                 for tok in re.findall(r"[a-z0-9\.\-\+]+", text):
                     if len(tok) >= 3:
                         vocab.add(tok)
-    # Keep a few broad anchors to avoid over-pruning borderline but relevant papers.
-    vocab.update({"quantization", "low-bit", "llm", "language model", "transformer"})
+    for term in anchor_terms or []:
+        term = str(term).strip().lower()
+        if term:
+            vocab.add(term)
     return vocab
 
 
@@ -390,7 +405,12 @@ def build_triage_report(
     arxiv_json_path: str,
     output_path: str,
     keywords: list[str],
+    core_keywords: list[str] | None = None,
+    context_keywords: list[str] | None = None,
     routing_config_path: str | None = None,
+    profile_routing_rules_data: list[dict] | None = None,
+    fallback_subsection: str = "02/01_general_related_work",
+    framework_anchor_terms: list[str] | None = None,
     tier_filter: int | None = None,
     min_score: int = 0,
     coarse_prune: bool = True,
@@ -398,8 +418,8 @@ def build_triage_report(
     verbose: bool = False,
 ) -> dict:
     papers = load_arxiv_json(arxiv_json_path)
-    rules = load_routing_config(routing_config_path)
-    framework_vocab = build_framework_vocabulary(rules)
+    rules = load_routing_config(routing_config_path) if routing_config_path else (profile_routing_rules_data or DEFAULT_ROUTING_RULES)
+    framework_vocab = build_framework_vocabulary(rules, framework_anchor_terms)
 
     results = []
     tier_counts = {"Tier 1 – Core": 0, "Tier 2 – High Relevance": 0,
@@ -431,8 +451,13 @@ def build_triage_report(
                 time.sleep(delay)
             continue
 
-        classification = classify_12field(meta, keywords)
-        subsection = route_paper(classification, rules)
+        classification = classify_12field(
+            meta,
+            keywords,
+            core_keywords=core_keywords,
+            context_keywords=context_keywords,
+        )
+        subsection = route_paper(classification, rules, fallback_subsection)
         text = (meta.get("title", "") + " " + meta.get("abstract", "")).lower()
         fw_hits = framework_match_keywords(text, framework_vocab)
         classification["framework_match_count"] = len(fw_hits)
@@ -521,8 +546,11 @@ def main():
     ap.add_argument("--tier-filter", type=int, choices=[1, 2, 3, 4],
                    help="Only process papers of this tier (1-4)")
     ap.add_argument("--topic-keywords", "-k",
-                   default="quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit",
-                   help="Comma-separated topic keywords")
+                   default="",
+                   help="Comma-separated topic keywords (overrides profile keywords)")
+    ap.add_argument("--domain-profile",
+                   default="templates/domain_profiles/general_profile.json",
+                   help="Domain profile JSON path")
     ap.add_argument("--routing-config", "-r",
                    help="JSON routing config (default: built-in ultra-low bit rules)")
     ap.add_argument("--min-score", type=int, choices=[0, 1, 2, 3], default=0,
@@ -544,11 +572,25 @@ def main():
         sys.exit(1)
 
     output_path = (root_dir / args.output).resolve()
-    keywords = [k.strip() for k in args.topic_keywords.split(",") if k.strip()]
+
+    try:
+        profile, profile_path = load_domain_profile(args.domain_profile, root_dir)
+    except DomainProfileError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    keywords = [k.strip() for k in args.topic_keywords.split(",") if k.strip()] or profile_keywords(profile)
+    core_keywords = profile_core_keywords(profile)
+    context_keywords = profile_context_keywords(profile)
+    fallback_subsection = profile_routing_fallback(profile, "02/01_general_related_work")
+    profile_rules = profile_routing_rules(profile)
+    anchor_terms = profile_framework_anchor_terms(profile)
 
     print(f"SurveyMind batch_paper_triage")
     print(f"  Input:   {input_path}")
     print(f"  Output:  {output_path}")
+    print(f"  Profile: {profile_path}")
+    print(f"  Keywords:{','.join(keywords[:8])}")
     print(f"  Delay:   {args.delay}s between API calls")
     if args.tier_filter:
         print(f"  Filter:  Tier {args.tier_filter} only")
@@ -558,7 +600,12 @@ def main():
         arxiv_json_path=str(input_path),
         output_path=str(output_path),
         keywords=keywords,
+        core_keywords=core_keywords,
+        context_keywords=context_keywords,
         routing_config_path=args.routing_config,
+        profile_routing_rules_data=profile_rules,
+        fallback_subsection=fallback_subsection,
+        framework_anchor_terms=anchor_terms,
         tier_filter=args.tier_filter,
         min_score=args.min_score,
         coarse_prune=args.coarse_prune,

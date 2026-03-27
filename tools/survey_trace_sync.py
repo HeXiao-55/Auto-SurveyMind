@@ -2,7 +2,7 @@
 """
 survey_trace_sync.py — SurveyMind Paper Analysis → Survey Trace Synchroniser
 
-Reads all ``paper_analysis_results/*.md`` files, extracts their 8- or 12-field
+Reads all ``paper_analysis_results/*.md`` files, extracts their 8- or multi-field
 classifications and evidence tables, then appends each paper to the correct
 subsection record in the ``survey_trace/`` directory tree.
 
@@ -44,6 +44,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from domain_profile import (
+    DomainProfileError,
+    load_domain_profile,
+    profile_routing_fallback,
+    profile_routing_rules,
+)
+
 
 # ─── Routing logic ────────────────────────────────────────────────────────
 
@@ -53,95 +60,59 @@ from typing import Optional
 # subsection format: "section_num/subsection_dir_name"
 
 DEFAULT_ROUTING_RULES: list[dict] = [
-    # QAT – Binary
     {
         "training": ["QAT", "From-Scratch"],
         "method": ["Binary", "binarization", "1-bit"],
         "bits": ["1-bit"],
-        "subsection": "05/01_binary_networks_1_bit",
+        "subsection": "05/01_method_training_strategies",
     },
-    # QAT – Ternary
     {
         "training": ["QAT", "From-Scratch"],
         "method": ["Ternary", "ternarization", "1.58-bit"],
         "bits": ["1.58-bit", "ternary"],
-        "subsection": "05/02_ternary_networks_1_58_bit",
+        "subsection": "05/02_method_variants",
     },
-    # QAT – Recent advances
-    {
-        "training": ["QAT"],
-        "method": ["curvature", "hessian", "low-rank", "sparse", "co-training"],
-        "bits": [],
-        "subsection": "05/03_recent_qat_advances_curvature_and_sparse_co_training",
-    },
-    # PTQ – Ultra-low bit
     {
         "training": ["PTQ"],
-        "method": ["Ultra-low", "sub-2-bit", "structured", "mask", "trit-plane",
-                    "dual-scale", "deviation", "block reconstruction",
-                    "layer-wise", "butterfly", "rotation"],
-        "bits": ["1-bit", "1.61-bit", "sub-2-bit", "1.58-bit"],
-        "subsection": "06/01_ultra_low_ptq_sub_2_bit",
+        "method": ["reconstruction", "calibrate", "layer-wise", "rotation"],
+        "bits": [],
+        "subsection": "06/01_post_training_methods",
     },
-    # PTQ – 2-bit
     {
         "training": ["PTQ"],
-        "method": ["2-bit", "INT2", "progressive"],
-        "bits": ["2-bit"],
-        "subsection": "06/2_2_bit_quantization_methods",
+        "method": ["mixed-precision", "4-bit", "3-bit", "2-bit"],
+        "bits": ["2-bit", "3-bit", "4-bit"],
+        "subsection": "06/02_precision_design_space",
     },
-    # PTQ – Standard (3-4 bit)
-    {
-        "training": ["PTQ"],
-        "method": ["standard", "4-bit", "per-channel", "per-token", "mixed-precision"],
-        "bits": ["3-bit", "4-bit"],
-        "subsection": "06/04_transform_based_and_mixed_precision_methods",
-    },
-    # PTQ – Any (fallback)
-    {
-        "training": ["PTQ"],
-        "method": [],
-        "bits": [],
-        "subsection": "06/01_ultra_low_ptq_sub_2_bit",
-    },
-    # Outlier handling
     {
         "training": [],
-        "method": ["outlier", "smoothquant", "quarot", "quip", "prefix",
-                    "rotation", "redistribution", "migration", "asymmetric"],
+        "method": ["outlier", "normalization", "stability", "generalization"],
         "bits": [],
-        "subsection": "07/02_categorization_of_outlier_handling_methods",
+        "subsection": "07/01_stability_and_generalization",
     },
-    # Hardware
     {
         "training": [],
-        "method": ["CPU", "GPU", "ASIC", "CIM", "PIM", "kernel", "lut",
-                    "hardware", "inference", "SIMD", "async", "dequantization"],
+        "method": ["CPU", "GPU", "ASIC", "FPGA", "hardware", "kernel", "throughput"],
         "bits": [],
-        "subsection": "08/01_cpu_implementations",
+        "subsection": "08/01_system_and_hardware",
     },
-    # Multimodal / Beyond text
     {
         "training": [],
-        "method": ["multimodal", "MLLM", "VLM", "VLA", "agent", "KV cache"],
+        "method": ["multimodal", "vision", "language", "agent"],
         "bits": [],
-        "subsection": "11/1_1_bit_vision_language_action_models",
+        "subsection": "11/01_cross_domain_applications",
     },
-    # Benchmark / Evaluation
     {
         "training": [],
-        "method": ["benchmark", "perplexity", "accuracy", "latency", "throughput",
-                    "energy", "memory"],
+        "method": ["benchmark", "accuracy", "latency", "memory", "energy", "efficiency"],
         "bits": [],
-        "subsection": "09/02_performance_comparison",
+        "subsection": "09/01_evaluation_protocols",
     },
-    # Gap analysis
     {
         "training": [],
-        "method": ["gap", "limitation", "challenge", "generalization", "theory",
-                    "standardization"],
+        "method": ["gap", "limitation", "challenge", "open problem"],
         "bits": [],
-        "subsection": "10/01_gap_1_lack_of_standardized_evaluation_protocols",
+        "subsection": "10/01_open_challenges",
     },
 ]
 
@@ -158,7 +129,7 @@ FIELD_PATTERNS = [
     (r"Evaluation Focus[:\s]*\*\*Classification\*\*[:\s]*([^\n*]+)", "evaluation"),
     (r"Hardware Co-design[:\s]*\*\*Classification\*\*[:\s]*([^\n*]+)", "hardware"),
     (r"Summary[:\s]*\*\*Summary\*\*[:\s]*\n\*\*[^\n]*\n([^\n#]+)", "summary"),
-    # 12-field additions
+    # multi-field additions
     (r"Quantization Bit Scope[:\s]*\*\*Classification\*\*[:\s]*([^\n*]+)", "bit_scope"),
     (r"General Method Type[:\s]*\*\*Classification\*\*[:\s]*([^\n*]+)", "general_method"),
     (r"Core Challenge Addressed[:\s]*\*\*Classification\*\*[:\s]*([^\n*]+)", "core_challenge"),
@@ -187,7 +158,7 @@ def parse_paper_analysis(filepath: str) -> dict:
     """Extract structured fields + evidence table from a paper analysis .md file."""
     content = open(filepath).read()
 
-    fields = {"source_file": filepath}
+    fields: dict[str, object] = {"source_file": filepath}
     for pat, key in FIELD_PATTERNS:
         m = re.search(pat, content, re.IGNORECASE)
         fields[key] = m.group(1).strip() if m else ""
@@ -221,7 +192,7 @@ def parse_paper_analysis(filepath: str) -> dict:
     return fields
 
 
-def route_paper(paper: dict, rules: list[dict]) -> str:
+def route_paper(paper: dict, rules: list[dict], fallback_subsection: str) -> str:
     """
     Determine the survey_trace subsection for a paper based on its classification.
 
@@ -229,10 +200,12 @@ def route_paper(paper: dict, rules: list[dict]) -> str:
     or "06/01_ultra_low_ptq_sub_2_bit".
     """
     training = (paper.get("training") or "").upper()
-    method = (paper.get("method_category") + " " +
-               paper.get("specific_method") + " " +
-               paper.get("general_method") + " " +
-               paper.get("core_challenge")).upper()
+    method = (
+        str(paper.get("method_category") or "") + " " +
+        str(paper.get("specific_method") or "") + " " +
+        str(paper.get("general_method") or "") + " " +
+        str(paper.get("core_challenge") or "")
+    ).upper()
     bits = (paper.get("bit_scope") or "").upper()
 
     for rule in rules:
@@ -252,7 +225,7 @@ def route_paper(paper: dict, rules: list[dict]) -> str:
 
         return rule["subsection"]
 
-    return "02/01_general_model_quantization_surveys"  # fallback
+    return fallback_subsection
 
 
 def build_trace_entry(paper: dict) -> str:
@@ -348,6 +321,7 @@ def sync_papers_to_trace(
     papers_dir: Path,
     trace_dir: Path,
     rules: list[dict],
+    fallback_subsection: str,
     dry_run: bool = False,
     verbose: bool = False,
 ) -> dict:
@@ -374,7 +348,7 @@ def sync_papers_to_trace(
             error_count += 1
             continue
 
-        subsection = route_paper(paper, rules)
+        subsection = route_paper(paper, rules, fallback_subsection)
         routing_log[paper["arxiv_id"]] = subsection
 
         if verbose:
@@ -505,6 +479,11 @@ def main():
         help="JSON file with routing rules (default: built-in ultra-low bit rules)"
     )
     ap.add_argument(
+        "--domain-profile",
+        default="templates/domain_profiles/general_profile.json",
+        help="Domain profile JSON path",
+    )
+    ap.add_argument(
         "--dry-run", "-n", action="store_true",
         help="Show routing decisions without writing files"
     )
@@ -527,17 +506,26 @@ def main():
         print(f"ERROR: trace directory not found: {trace_dir}", file=sys.stderr)
         sys.exit(1)
 
-    rules = load_routing_config(args.routing_config or "")
+    try:
+        profile, profile_path = load_domain_profile(args.domain_profile, root_dir)
+    except DomainProfileError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    rules = load_routing_config(args.routing_config or "") if args.routing_config else profile_routing_rules(profile)
+    fallback_subsection = profile_routing_fallback(profile, "02/01_general_related_work")
     print(f"SurveyMind survey_trace_sync")
     print(f"  Papers:  {papers_dir}")
     print(f"  Trace:   {trace_dir}")
-    print(f"  Routing:  {'default (ultra-low bit)' if not args.routing_config else args.routing_config}")
+    print(f"  Profile: {profile_path}")
+    print(f"  Routing:  {'domain profile defaults' if not args.routing_config else args.routing_config}")
     print(f"  Dry run: {args.dry_run}")
 
     result = sync_papers_to_trace(
         papers_dir=papers_dir,
         trace_dir=trace_dir,
         rules=rules,
+        fallback_subsection=fallback_subsection,
         dry_run=args.dry_run,
         verbose=args.verbose,
     )

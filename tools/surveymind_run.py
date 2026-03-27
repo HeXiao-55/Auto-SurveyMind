@@ -25,7 +25,7 @@ Usage
         --arxiv-json tpami_tem/arxiv_results.json \\
         --papers-dir my_papers \\
         --trace-dir "my idea/survey_trace" \\
-        --topic-keywords "quantization,LLM,binary,ternary,1-bit,1.58-bit" \\
+        --topic-keywords "{keyword1},{keyword2},{keyword3}" \\
         --routing-config my_routing.json
 
 Exit codes
@@ -43,6 +43,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple, cast
 
+from domain_profile import DomainProfileError, load_domain_profile
+
 # ─── Available stages ───────────────────────────────────────────────────────
 
 STAGES = [
@@ -51,7 +53,7 @@ STAGES = [
     "corpus-extract",    # Parse arxiv JSON → corpus report + tier classification
     "paper-download",    # Download PDFs for target tiers before deep analysis
     "paper-analysis",    # Validate/prepare per-paper analysis artifacts
-    "batch-triage",     # Full 12-field triage of all arxiv papers (API enrichment)
+    "batch-triage",     # Full multi-field triage of all arxiv papers (API enrichment)
     "trace-init",        # Parse survey LaTeX → create survey_trace/ directory tree
     "trace-sync",        # Sync paper analyses → survey_trace subsection records
     "taxonomy-alloc",   # Taxonomy-based allocation of papers to subsections
@@ -144,7 +146,7 @@ def run_brainstorm(args) -> int:
         scope_path = Path(args.scope_file)
         scope_path.parent.mkdir(parents=True, exist_ok=True)
         keywords = args.topic_keywords.split(",")
-        primary_kw = keywords[0].strip() if keywords else "quantization"
+        primary_kw = keywords[0].strip() if keywords else "research topic"
         secondary_kw = ", ".join(k.strip() for k in keywords[1:] if k.strip())
 
         content = f"""# Survey Scope: {primary_kw.title()}
@@ -154,7 +156,7 @@ def run_brainstorm(args) -> int:
 **Date**: {datetime.now().date()}
 
 ## Refined Topic
-A comprehensive survey focusing on {primary_kw} for large language models, covering algorithms, hardware co-design, and benchmark evaluation.
+A comprehensive survey focusing on {primary_kw}, covering representative methods, evaluation protocols, application settings, and open challenges.
 
 ## Target Keywords (for arXiv search)
 - **Primary**: {primary_kw}
@@ -163,10 +165,9 @@ A comprehensive survey focusing on {primary_kw} for large language models, cover
 ## Survey Parameters
 | Parameter | Value |
 |-----------|-------|
-| **Bit-width focus** | Ultra-low (<2-bit) and low-bit (2-4 bit) |
-| **Method scope** | PTQ + QAT |
-| **Model types** | Decoder-only LLMs |
-| **Primary focus** | Algorithm innovation + hardware co-design |
+| **Method scope** | Determined from scope and keyword evidence |
+| **Target entities** | Determined from scope and keyword evidence |
+| **Primary focus** | Methods, benchmarks, and practical challenges |
 | **Target venue** | arXiv / survey |
 
 ## Next Steps
@@ -192,8 +193,8 @@ python3 tools/surveymind_run.py --stage all --topic-keywords "{args.topic_keywor
 ║  Example:                                                            ║
 ║      python3 tools/surveymind_run.py \\                              ║
 ║          --stage brainstorm \\                                        ║
-║          --scope-topic "ultra-low bit quantization for LLMs" \\      ║
-║          --topic-keywords "quantization,LLM,binary,ternary"        ║
+║          --scope-topic "graph neural network robustness" \\          ║
+║          --topic-keywords "graph neural network,robustness,adversarial"║
 ╚══════════════════════════════════════════════════════════════════════╝
 """)
     return 0
@@ -248,6 +249,7 @@ def run_corpus_extract(args) -> int:
         "--papers-dir", args.pdf_dir,
         "--topic-keywords", args.topic_keywords,
         "--output", args.output_base or args.corpus_report_base,
+        "--domain-profile", args.domain_profile,
     ]
     if args.dry_run:
         cmd.append("--dry-run")
@@ -715,7 +717,7 @@ def _build_analysis_from_pdf(paper_id: str, meta: Dict, cls: Dict, pdf_text: str
 
 ---
 
-## 12-Field Classification (PDF-First Draft)
+## multi-field Classification (PDF-First Draft)
 
 1. **Model Type**: {cls.get('model_type', 'Unknown')}
 2. **Method Category**: {cls.get('method_category', 'Unknown')}
@@ -778,7 +780,7 @@ def _build_analysis_draft(paper_id: str, meta: Dict, cls: Dict) -> str:
 
 ---
 
-## 12-Field Classification (Triage-Derived Draft)
+## multi-field Classification (Triage-Derived Draft)
 
 1. **Model Type**: {cls.get('model_type', 'Unknown')}
 2. **Method Category**: {cls.get('method_category', 'Unknown')}
@@ -917,6 +919,8 @@ def run_trace_sync(args) -> int:
     ]
     if args.routing_config:
         cmd.extend(["--routing-config", args.routing_config])
+    if args.domain_profile:
+        cmd.extend(["--domain-profile", args.domain_profile])
     if args.dry_run:
         cmd.append("--dry-run")
     if args.verbose:
@@ -938,6 +942,7 @@ def run_taxonomy_alloc(args) -> int:
         sys.executable, "tools/taxonomy_alloc.py",
         "--analysis-dir", args.analysis_dir,
         "--taxonomy-dir", args.gate3_dir,
+        "--domain-profile", args.domain_profile,
     ]
     if args.dry_run:
         cmd.append("--dry-run")
@@ -953,7 +958,7 @@ def run_taxonomy_alloc(args) -> int:
 def run_batch_triage(args) -> int:
     """Run batch_paper_triage to classify all arxiv papers with API enrichment."""
     print("\n" + "=" * 60)
-    print("STAGE: batch-triage — Full 12-field classification via arXiv API")
+    print("STAGE: batch-triage — Full multi-field classification via arXiv API")
     print("=" * 60)
 
     cmd = [
@@ -970,6 +975,8 @@ def run_batch_triage(args) -> int:
         cmd.append("--no-coarse-prune")
     if args.routing_config:
         cmd.extend(["--routing-config", args.routing_config])
+    if args.domain_profile:
+        cmd.extend(["--domain-profile", args.domain_profile])
     if args.verbose:
         cmd.append("--verbose")
 
@@ -1138,7 +1145,7 @@ def main():
     )
     ap.add_argument(
         "--topic-keywords", "-k",
-        default="quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit",
+        default="machine learning,survey,benchmark",
         help="Comma-separated topic keywords for relevance scoring"
     )
     ap.add_argument(
@@ -1181,7 +1188,12 @@ def main():
     )
     ap.add_argument(
         "--routing-config",
-        help="JSON routing config for trace-sync (default: built-in ultra-low bit rules)"
+        help="JSON routing config for trace-sync (default: built-in generic rules)"
+    )
+    ap.add_argument(
+        "--domain-profile",
+        default="templates/domain_profiles/general_profile.json",
+        help="Domain profile JSON path controlling relevance and routing defaults",
     )
     ap.add_argument(
         "--coarse-prune",
@@ -1320,10 +1332,18 @@ def main():
         output_path = Path(args.output_base)
         args.output_base = str(output_path if output_path.is_absolute() else (root / output_path).resolve())
 
+    try:
+        _, profile_path = load_domain_profile(args.domain_profile, root)
+    except DomainProfileError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+    args.domain_profile = str(profile_path)
+
     print(f"SurveyMind Pipeline — {datetime.now().date()}")
     print(f"Stage: {args.stage}")
     print(f"Project root: {root}")
     print(f"Survey root: {args.survey_root}")
+    print(f"Domain profile: {args.domain_profile}")
 
     if args.stage == "all":
         # Run in dependency order. batch-triage must run before paper-analysis so
