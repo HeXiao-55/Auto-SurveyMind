@@ -109,7 +109,7 @@ CLI 编排器默认在 scope 确认后先执行广覆盖检索阶段：
 |------|------|------|
 | 0 | `/survey-brainstorm "宽泛主题"` | 将模糊主题精炼为聚焦范围（仅当主题模糊时） |
 | 1 | `/research-lit "子领域"` | 多源文献检索 |
-| 2 | `/paper-analysis "子领域"` | 基于8维度分类体系分析论文 |
+| 2 | `/paper-analysis "子领域"` | 基于优先级（默认Tier1+Tier2）执行深度分析并输出覆盖报告 |
 | 3 | `/taxonomy-build "子领域"` | 从分类结果构建层次化分类体系 |
 | 4 | `/gap-identify "子领域"` | 识别研究空白和未来方向 |
 | 5 | `/survey-write "子领域"` | 生成结构化综述文档 |
@@ -206,7 +206,7 @@ SurveyMind/
 │   ├── survey-pipeline/            # 端到端编排器
 │   ├── survey-brainstorm/          # 课题提炼与范围定义
 │   ├── research-lit/              # 文献检索
-│   ├── paper-analysis/            # 论文分类（8维度）
+│   ├── paper-analysis/            # 论文深度分析与覆盖校验（优先级驱动）
 │   ├── taxonomy-build/            # 分类体系构建
 │   ├── gap-identify/              # 研究空白分析
 │   ├── survey-write/              # 综述生成

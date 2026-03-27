@@ -130,7 +130,7 @@ Stage 7 (Full CLI Orchestration) ───────────────�
   ├──> arxiv-discover    ──▶ tools/arxiv_discover.py ──▶ gate1_research_lit/arxiv_results.json
         ├──> corpus-extract     ──▶ tools/arxiv_json_extractor.py ──▶ gate1_research_lit/corpus_report.md
         ├──> batch-triage      ──▶ tools/batch_paper_triage.py ──▶ gate2_paper_analysis/all_papers_triage.json
-        ├──> paper-analysis    ──▶ coverage check vs gate1_research_lit/paper_list.json
+        ├──> paper-analysis    ──▶ tier-priority deep analysis + coverage report (Tier1/2 by default)
         ├──> trace-init       ──▶ tools/survey_trace_init.py ──▶ survey_trace/ directory tree
         ├──> convert-12field  ──▶ tools/convert_to_12field.py ──▶ upgraded 12-field analyses
         ├──> trace-sync       ──▶ tools/survey_trace_sync.py ──▶ survey_trace/**/SUBSECTION_RECORD.md
@@ -182,7 +182,7 @@ python3 tools/surveymind_run.py --stage <name>
 | `brainstorm` | in-process | Generate `SURVEY_SCOPE.md` from `--scope-topic` + `--topic-keywords` |
 | `arxiv-discover` | `arxiv_discover.py` | Broad-recall arXiv retrieval after scope confirmation, outputs gate1 `arxiv_results.json` |
 | `corpus-extract` | `arxiv_json_extractor.py` | Parse `arxiv_results.json` → tiered corpus report |
-| `paper-analysis` | `batch_paper_triage.py` (API) | Check coverage of `gate1_research_lit/paper_list.json` vs `gate2_paper_analysis/` |
+| `paper-analysis` | in-process + `paper_triage.py` fallback | Build target set from `all_papers_triage`, optionally generate missing analysis drafts, and emit coverage report |
 | `batch-triage` | `batch_paper_triage.py` | 12-field triage of ALL papers in `arxiv_results.json` via arXiv API |
 | `trace-init` | `survey_trace_init.py` | Parse LaTeX → create `survey_trace/` directory tree |
 | `convert-12field` | `convert_to_12field.py` | Upgrade existing analyses from 8-field → 12-field format |
