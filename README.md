@@ -63,7 +63,7 @@ Stage 2 ────────────────────────
   /paper-analysis "topic"   [Skill]
         │
         │  LLM reads each paper PDF
-        │  Extracts 8-dim / 12-field classification + evidence snippets
+        │  Extracts multi-dimensional classification + evidence snippets (dimensions emerge from corpus)
         │
         ▼
   gate2_paper_analysis/*_analysis.md  (per-paper structured analysis)
@@ -243,6 +243,73 @@ python3 tools/surveymind_run.py --stage all \
 
 ---
 
+## Common Use Cases
+
+### Use Case 1: Resume & Expand Literature Coverage (add recent open-source papers, re-stratify)
+
+Use this when you want to grow your paper corpus with newer results.
+
+```bash
+# 1. Re-search arXiv for new papers
+python3 tools/surveymind_run.py --stage arxiv-discover \
+  --survey-name ultra_low_bit \
+  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+
+# 2. Re-stratify the updated corpus
+python3 tools/surveymind_run.py --stage corpus-extract --survey-name ultra_low_bit
+
+# 3. Re-run batch triage on all papers
+python3 tools/surveymind_run.py --stage batch-triage \
+  --survey-name ultra_low_bit \
+  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+```
+
+Then deep-analyze newly added papers with a Skill:
+
+```bash
+> /paper-analysis "ultra low-bit LLM quantization"
+```
+
+### Use Case 2: Structure & Conclusion Convergence (regenerate taxonomy / gap / survey)
+
+Use this when your literature base is sufficient and you want to polish the survey toward submission-readiness.
+
+```bash
+> /taxonomy-build "ultra low-bit LLM quantization"
+> /gap-identify "ultra low-bit LLM quantization"
+> /survey-write "ultra low-bit LLM quantization"
+```
+
+### Use Case 3: Rerun from Scratch Without Touching Existing Data
+
+The safest approach: run the pipeline under a new survey name — old results stay completely untouched.
+
+```bash
+# Keep the old directory (survey_ultra_low_bit) intact
+# New results go to: surveys/survey_ultra_low_bit_rerun_20260327/
+
+# Step 1: brainstorm
+python3 tools/surveymind_run.py --stage brainstorm \
+  --survey-name ultra_low_bit_rerun_20260327 \
+  --scope-topic "Ultra-low bit quantization for LLMs" \
+  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit"
+
+# Step 2: full pipeline rerun
+python3 tools/surveymind_run.py --stage all \
+  --survey-name ultra_low_bit_rerun_20260327 \
+  --topic-keywords "quantization,LLM,binary,ternary,low-bit,post-training,1-bit,1.58-bit" \
+  --validation-strict
+```
+
+**Advanced strategy — reuse old corpus to save time**: If you want to re-run the full pipeline but reuse the existing arXiv corpus to skip re-discovery:
+
+1. Copy the old `gate1_research_lit/arxiv_results.json` into the new survey directory
+2. When running `stage all`, point to the old JSON as the input source
+
+This gives you a fully reproducible re-run while keeping zero overlap with and zero damage to historical results — true zero-overwrite, full rollback support.
+
+---
+
 ## Architecture Diagram
 
 ```
@@ -313,7 +380,7 @@ SurveyMind/
 │   ├── survey-pipeline/           # End-to-end orchestrator skill
 │   ├── survey-brainstorm/          # Topic refinement & scope definition (NEW)
 │   ├── research-lit/              # Literature search
-│   ├── paper-analysis/            # Paper classification (12-dim framework)
+│   ├── paper-analysis/            # Paper classification (dynamic multi-dim framework)
 │   ├── taxonomy-build/           # Taxonomy construction
 │   ├── gap-identify/             # Research gap analysis
 │   ├── survey-write/             # Survey generation
