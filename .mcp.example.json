@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "zotero": {
+      "command": "npx",
+      "args": ["-y", "@aninstein/mcp-server-zotero"],
+      "env": {
+        "ZOTERO_LIBRARY_TYPE": "user",
+        "ZOTERO_LIBRARY_ID": "YOUR_LIBRARY_ID"
+      }
+    },
+    "obsidian-vault": {
+      "command": "npx",
+      "args": ["-y", "@aninstein/mcp-server-obsidian-vault"],
+      "env": {
+        "OBSIDIAN_VAULT_PATH": "/absolute/path/to/your/vault"
+      }
+    },
+    "codex": {
+      "command": "uvicorn",
+      "args": ["mcp_servers.codex.server:app", "--factory"],
+      "env": {
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}

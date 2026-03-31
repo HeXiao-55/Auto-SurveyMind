@@ -13,7 +13,8 @@ SurveyMind supports two parallel workflows:
 | **Skill (agentic)** | `/survey-pipeline "{TOPIC}"` | Full autonomous pipeline with LLM-powered reasoning at each stage |
 | **CLI (scriptable)** | `python3 tools/surveymind_run.py --stage all` | Reproducible batch execution, CI/CD integration |
 
-Both produce the same outputs. The skill-based pipeline invokes LLM reasoning between stages; the CLI runs tools directly.
+The two entry points share the same gate directory conventions, but produce different terminal artifacts.
+The skill pipeline can continue to taxonomy/gap/survey drafting with LLM reasoning; the CLI focuses on reproducible corpus/analysis/trace/validation stages.
 
 ## Output Layout (Default)
 
@@ -166,7 +167,33 @@ Stage 7 (Full CLI Orchestration) ───────────────�
 | `tools/survey_trace_init.py` | Parse LaTeX → create survey_trace/ tree | survey `.tex` | `survey_trace/13 sections/` |
 | `tools/survey_trace_sync.py` | Sync analyses → survey_trace records | `gate2_paper_analysis/` | `survey_trace/**/SUBSECTION_RECORD.md` |
 | `tools/generate_survey_mindmap.py` | Generate mindmap from survey_trace | `survey_trace/` | `mindmap/survey_mindmap.pdf` |
+| `tools/watchdog.py` | Training/download monitoring daemon (tmux + GPU) | tmux/screen sessions | `/tmp/aris-watchdog/status/` JSON files |
+| `tools/init_findings.py` | Initialise or check `findings.md` | — | creates `findings.md` in project root |
 | `validation/run_validation.py` | Citation, benchmark, guardrail validation | survey files | validation report |
+
+### Infrastructure Modules (importable Python libraries)
+
+| Module | Purpose |
+|--------|---------|
+| `tools.arxiv_client` | Unified arXiv API: `search()`, `fetch_metadata()`, `download_paper()` with retry + backoff |
+| `tools.atomic_write` | Atomic file writes: `atomic_write_text()`, `atomic_write_json()` (temp+rename) |
+| `tools.checkpoint` | TTL-aware state persistence: `Checkpoint` class with flock locking |
+| `tools.logging_config` | Structured logging: `setup_logging(name)`, colour TTY output |
+| `tools.mcp_base` | MCP server base class: subclass `MCPServer`, implement `_call_api()` + `_get_tool_schema()` |
+
+---
+
+## MCP Servers
+
+SurveyMind uses the Model Context Protocol (MCP) to integrate with external tools. Copy `.mcp.example.json` to your Claude Code config (usually `~/.claude/mcp_settings.json`) and fill in your credentials.
+
+| Server | Purpose | Key env vars |
+|--------|---------|-------------|
+| `zotero` | Query your Zotero library from skills | `ZOTERO_LIBRARY_TYPE`, `ZOTERO_LIBRARY_ID` |
+| `obsidian-vault` | Read/write notes in your Obsidian vault | `OBSIDIAN_VAULT_PATH` |
+| `codex` | External research review via OpenAI-compatible API | `OPENAI_API_KEY` |
+
+The `tools/mcp_base.py` module provides a reusable base class for adding new MCP servers — subclass `MCPServer` and implement `_call_api()` + `_get_tool_schema()`. See `mcp-servers/llm-chat/server.py` for a complete example (~100 lines vs ~300 in the original).
 
 ---
 
@@ -233,6 +260,42 @@ python3 tools/surveymind_run.py --stage paper-analysis \
   --analysis-tier-scope tier3_tier4 \
   --analysis-mode deep+coverage
 ```
+
+---
+
+## Development Setup
+
+```bash
+# 1. Clone and configure
+cp .env.example .env    # fill in API keys
+make install             # create venv + install dependencies
+
+# 2. Code quality
+make format             # ruff format
+make lint              # ruff check --fix
+make test              # pytest tests/ -v
+
+# 3. Smoke tests
+make check-arxiv        # test arXiv API connectivity
+python3 tools/init_findings.py --check   # check findings.md status
+python3 tools/watchdog.py --help         # training watchdog daemon
+
+# 4. Install Claude Code skills
+./install.sh
+```
+
+### Make Targets
+
+| Target | What it does |
+|--------|-------------|
+| `make install` | Install runtime dependencies |
+| `make install-dev` | Install runtime + dev (pytest, ruff) |
+| `make test` | Run full test suite |
+| `make lint` | Run ruff linting |
+| `make format` | Auto-format with ruff |
+| `make check-arxiv` | Test arXiv API access |
+| `make validate` | Run citation/benchmark/guardrail validation |
+| `make clean` | Remove generated files |
 
 ---
 
@@ -402,26 +465,39 @@ Stage 3 (`/taxonomy-build`) then clusters all papers into a **hierarchical struc
 SurveyMind/
 ├── skills/                          # Modular skill components
 │   ├── survey-pipeline/           # End-to-end orchestrator skill
-│   ├── survey-brainstorm/          # Topic refinement & scope definition (NEW)
+│   ├── survey-brainstorm/          # Topic refinement & scope definition
 │   ├── research-lit/              # Literature search
 │   ├── paper-analysis/            # Paper classification (dynamic multi-dim framework)
 │   ├── taxonomy-build/           # Taxonomy construction
 │   ├── gap-identify/             # Research gap analysis
 │   ├── survey-write/             # Survey generation
 │   └── [other ML research skills]
-├── tools/                          # CLI utility scripts
-│   ├── surveymind_run.py         # Pipeline orchestrator (8 stages)
-│   ├── arxiv_fetch.py            # arXiv search & download
+├── tools/                          # CLI scripts + infrastructure modules
+│   ├── surveymind_run.py         # Pipeline orchestrator (11 stages)
+│   ├── arxiv_client.py           # Unified arXiv API (search, fetch, download)
+│   ├── arxiv_fetch.py            # CLI arXiv search & download
 │   ├── arxiv_json_extractor.py   # arXiv JSON → corpus report
 │   ├── batch_paper_triage.py     # Bulk multi-field triage via API
 │   ├── paper_triage.py           # Single-paper multi-field triage
+│   ├── atomic_write.py           # Atomic file writes (temp+rename)
+│   ├── checkpoint.py              # TTL-aware state persistence (flock)
+│   ├── logging_config.py          # Structured logging (TTY colour output)
+│   ├── mcp_base.py               # MCP server base class
+│   ├── watchdog.py                # Training/download monitoring daemon
+│   ├── init_findings.py           # findings.md initialisation script
 │   ├── taxonomy_alloc.py         # Taxonomy-based field allocation
 │   ├── survey_trace_init.py      # LaTeX → survey_trace/ tree
 │   ├── survey_trace_sync.py      # Analyses → survey_trace records
-│   ├── generate_survey_mindmap.py # Mindmap generation
 │   └── benchmark_extractor.py    # Extract benchmarks from papers
 ├── templates/                      # Analysis & record templates
+│   └── domain_profiles/          # Domain-specific routing rules (JSON)
 ├── validation/                     # Validation rules (guardrails)
+├── tests/                          # pytest test suite
+│   ├── test_arxiv_client.py
+│   ├── test_atomic_write.py
+│   ├── test_checkpoint.py
+│   ├── test_domain_profile.py
+│   └── test_logging_config.py
 ├── surveys/                        # Per-survey isolated outputs
 │   └── survey_<topic_slug>/
 │       ├── gate0_scope/
@@ -432,7 +508,11 @@ SurveyMind/
 │       ├── gate5_survey_write/
 │       ├── survey_trace/
 │       └── validation/
-├── WORKLOG.md                      # Optional global execution log
+├── findings.md                     # Cross-skill research + engineering findings log
+├── .env.example                   # Environment variable template
+├── .mcp.example.json             # MCP server configuration template
+├── pyproject.toml                  # Python package manifest
+├── Makefile                        # Development commands
 └── README.md
 ```
 

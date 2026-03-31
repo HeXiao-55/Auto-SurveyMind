@@ -56,8 +56,14 @@ def load_domain_profile(profile_path: str | None, project_root: Path) -> tuple[d
         raise DomainProfileError("profile root must be an object")
 
     _ = profile.get("name")
-    relevance = _require_dict("relevance", profile.get("relevance", {}))
-    routing = _require_dict("routing", profile.get("routing", {}))
+
+    if "relevance" not in profile:
+        raise DomainProfileError("profile.relevance must be an object")
+    relevance = _require_dict("relevance", profile.get("relevance"))
+
+    if "routing" not in profile:
+        raise DomainProfileError("profile.routing must be an object")
+    routing = _require_dict("routing", profile.get("routing"))
 
     _require_str_list("relevance.keywords", relevance.get("keywords", []))
     _require_str_list("relevance.core_keywords", relevance.get("core_keywords", []))

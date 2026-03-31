@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """CLI helper for searching and downloading arXiv papers.
 
+.. deprecated::
+    This module is deprecated. Use ``arxiv_client`` instead, which provides
+    the same functionality with a cleaner dataclass-based API and better retry
+    logic. Migrate ``arxiv_discover.py`` and ``surveymind_run.py`` to import
+    from ``arxiv_client`` (``search``, ``download_paper``) and update call sites
+    to handle ``ArxivPaper`` / ``DownloadResult`` dataclasses instead of dicts.
+
 Used by the ``arxiv`` skill (skills/arxiv/SKILL.md).
 
 Commands
@@ -17,6 +24,7 @@ python3 tools/arxiv_fetch.py download 2301.07041 --dir papers
 
 from __future__ import annotations
 
+import warnings
 import argparse
 import json
 import re
@@ -137,6 +145,11 @@ def _parse_entry(entry: ET.Element) -> dict:
 
 def search(query: str, max_results: int = 10, start: int = 0) -> list[dict]:
     """Search arXiv and return a list of paper dictionaries."""
+    warnings.warn(
+        "arxiv_fetch.search is deprecated; use arxiv_client.search returning ArxivPaper list",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     url = _api_url(query, max_results=max_results, start=start)
     root = _fetch_atom(url)
     return [_parse_entry(entry) for entry in root.findall(f"{{{_ATOM_NS}}}entry")]
@@ -144,6 +157,11 @@ def search(query: str, max_results: int = 10, start: int = 0) -> list[dict]:
 
 def download(arxiv_id: str, output_dir: str = "papers") -> dict:
     """Download a paper PDF and return metadata about the saved file."""
+    warnings.warn(
+        "arxiv_fetch.download is deprecated; use arxiv_client.download_paper returning DownloadResult",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     clean_id = _normalize_id(arxiv_id)
     safe_id = clean_id.replace("/", "_")
 

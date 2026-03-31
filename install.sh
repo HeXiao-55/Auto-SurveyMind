@@ -82,9 +82,9 @@ for skill_name in survey-pipeline research-lit paper-analysis taxonomy-build gap
 done
 echo "  Installed $INSTALLED_COUNT skills"
 
-# Create working directories for surveys
-mkdir -p "$HOME/SurveyMind-output"
-echo "  Created output directory: $HOME/SurveyMind-output"
+# Create default workspace surveys directory
+mkdir -p "$SCRIPT_DIR/surveys"
+echo "  Created output base: $SCRIPT_DIR/surveys"
 
 echo ""
 echo "=================================="
@@ -102,5 +102,5 @@ echo ""
 echo "  3. Run a survey:"
 echo "     > /survey-pipeline \"your research topic\""
 echo ""
-echo "Output will be saved to: $HOME/SurveyMind-output"
+echo "Output will be saved under: $SCRIPT_DIR/surveys/survey_<topic_slug>/"
 echo ""

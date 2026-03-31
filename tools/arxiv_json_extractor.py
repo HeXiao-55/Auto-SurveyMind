@@ -46,17 +46,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-import re
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from domain_profile import (
     DomainProfileError,
@@ -65,6 +62,7 @@ from domain_profile import (
     profile_core_keywords,
     profile_keywords,
 )
+from triage_core import compute_relevance_score
 
 # ─── arXiv API ────────────────────────────────────────────────────────────────
 
@@ -74,7 +72,7 @@ USER_AGENT = "SurveyMind-arxiv-extractor/1.0"
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 
 
-def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> Optional[dict]:
+def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> dict | None:
     """Fetch abstract + categories from arXiv API for one paper."""
     query = f"id:{arxiv_id}"
     url = f"{ARXIV_API}?search_query={urllib.parse.quote(query)}&max_results=1"
@@ -116,56 +114,9 @@ def fetch_arxiv_metadata(arxiv_id: str, retries: int = 2) -> Optional[dict]:
     return None
 
 
-# ─── Relevance Triage ───────────────────────────────────────────────────────
+# ─── Relevance helpers (file-specific) ─────────────────────────────────────────
 
 DEFAULT_KEYWORDS = ["survey", "review", "benchmark", "evaluation", "method", "model"]
-
-
-def compute_relevance_score(
-    title: str,
-    abstract: str = "",
-    categories: list[str] | None = None,
-    keywords: list[str] | None = None,
-    core_keywords: list[str] | None = None,
-    context_keywords: list[str] | None = None,
-) -> tuple[int, list[str]]:
-    """
-    Score a paper 0–3 for relevance to the survey topic.
-
-    Returns
-    -------
-    (score, matched_keywords)
-        0 = Low   (off-topic)
-        1 = Med   (indirectly related, e.g. general LLM efficiency)
-        2 = High  (directly addresses quantization methods)
-        3 = Core  (core contribution to ultra-low bit LLM quantization)
-    """
-    categories = categories or []
-    keywords = keywords or DEFAULT_KEYWORDS
-    core_keywords = core_keywords or []
-    context_keywords = context_keywords or []
-    text = (title + " " + (abstract or "")).lower()
-
-    matched = [kw for kw in keywords if kw.lower() in text]
-
-    if core_keywords or context_keywords:
-        core_hits = [kw for kw in core_keywords if kw.lower() in text]
-        context_hits = [kw for kw in context_keywords if kw.lower() in text]
-        if core_hits and context_hits:
-            return 3, matched
-        if core_hits or len(context_hits) >= 2:
-            return 2, matched
-        if matched:
-            return 1, matched
-        return 0, []
-
-    if len(matched) >= 3:
-        return 3, matched
-    if len(matched) >= 2:
-        return 2, matched
-    if matched:
-        return 1, matched
-    return 0, []
 
 
 def relevance_tier(score: int) -> str:
@@ -203,9 +154,9 @@ def load_arxiv_json(path: str) -> list[dict]:
 def build_corpus_report(
     arxiv_json_path: str,
     papers_dir: str = "papers",
-    topic_keywords: Optional[list[str]] = None,
-    core_keywords: Optional[list[str]] = None,
-    context_keywords: Optional[list[str]] = None,
+    topic_keywords: list[str] | None = None,
+    core_keywords: list[str] | None = None,
+    context_keywords: list[str] | None = None,
     enrich: bool = False,
     enrich_batch_size: int = 5,
     enrich_delay: float = 3.0,
@@ -297,7 +248,7 @@ def build_corpus_report(
             if not p["abstract"] and p["arxiv_id"] in unavailable_ids
         ]
         if not missing_abstract:
-            print(f"  No papers need enrichment (all have abstracts or PDFs).")
+            print("  No papers need enrichment (all have abstracts or PDFs).")
         else:
             print(f"  Enriching {len(missing_abstract)} papers via arXiv API...")
             for i in range(0, len(missing_abstract), enrich_batch_size):
@@ -360,8 +311,8 @@ def make_markdown_report(report: dict) -> str:
         "",
         "## Summary",
         "",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "| Metric | Value |",
+        "|--------|-------|",
         f"| Total papers | {report['summary']['total']} |",
         f"| PDFs available | {report['summary']['with_pdf']} |",
         f"| PDFs missing | {report['summary']['missing_pdf']} |",
@@ -485,7 +436,7 @@ def main():
     core_keywords = profile_core_keywords(profile)
     context_keywords = profile_context_keywords(profile)
 
-    print(f"SurveyMind arxiv_json_extractor")
+    print("SurveyMind arxiv_json_extractor")
     print(f"  Input:   {input_path}")
     print(f"  Papers:  {papers_dir}")
     print(f"  Profile: {profile_path}")

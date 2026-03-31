@@ -147,14 +147,14 @@ Stage 1 output (paper_list.json) ──▶ Stage 2 input
 ```
 
 **Output:**
-- Directory: `paper_analysis_results/`
+- Directory: `surveys/survey_<topic_slug>/gate2_paper_analysis/`
 - Files: `{paper_id}_analysis.md` for each paper
 
 **🚦 Gate 2 — Review:**
 After Stage 2, report analysis completion. If `AUTO_PROCEED=true`, auto-continue:
 ```
 ✅ Paper analysis complete: N papers analyzed
-📁 Results saved to: paper_analysis_results/
+📁 Results saved to: gate2_paper_analysis/
 
 Classification summary:
 - Model family A: N
@@ -176,7 +176,7 @@ When auto-proceeding, also append to `findings.md`:
 **Command**: `/taxonomy-build "$ARGUMENTS"`
 
 **What happens:**
-1. Reads all `paper_analysis_results/*.md` files
+1. Reads all `gate2_paper_analysis/*.md` files
 2. Builds hierarchical taxonomy
 3. Analyzes coverage and interconnections
 

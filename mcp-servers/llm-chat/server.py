@@ -1,278 +1,107 @@
 #!/usr/bin/env python3
-"""Generic LLM Chat MCP Server - Supports any OpenAI-compatible API
+"""Generic LLM Chat MCP Server — supports any OpenAI-compatible API.
 
-Environment Variables:
-    LLM_API_KEY      - API key (required)
-    LLM_BASE_URL     - API base URL (default: https://api.openai.com/v1)
-    LLM_MODEL        - Model name (default: gpt-4o)
-    LLM_SERVER_NAME  - Server name for MCP (default: llm-chat)
+Refactored to inherit from tools/mcp_base.py, eliminating ~200 lines
+of boilerplate duplication with minimax-chat/server.py.
 
-Supported Providers (examples):
-    OpenAI:      LLM_BASE_URL=https://api.openai.com/v1 LLM_MODEL=gpt-4o
-    DeepSeek:    LLM_BASE_URL=https://api.deepseek.com/v1 LLM_MODEL=deepseek-chat
-    Kimi:        LLM_BASE_URL=https://api.moonshot.cn/v1 LLM_MODEL=moonshot-v1-32k
-    MiniMax:     LLM_BASE_URL=https://api.minimax.chat/v1 LLM_MODEL=MiniMax-M2.5
+Environment Variables (override class attributes)
+-------------------------------------------------
+    LLM_API_KEY      API key (required)
+    LLM_BASE_URL     API base URL (default: https://api.openai.com/v1)
+    LLM_MODEL        Model name (default: gpt-4o)
+    LLM_SERVER_NAME  Server name for MCP (default: llm-chat)
+    LLM_MAX_TOKENS   max_tokens per request (default: 4096)
+    LLM_TIMEOUT      HTTP timeout in seconds (default: 300)
+
+Supported Providers (examples)
+------------------------------
+    OpenAI:  LLM_BASE_URL=https://api.openai.com/v1 LLM_MODEL=gpt-4o
+    DeepSeek: LLM_BASE_URL=https://api.deepseek.com/v1 LLM_MODEL=deepseek-chat
+    Kimi:    LLM_BASE_URL=https://api.moonshot.cn/v1 LLM_MODEL=moonshot-v1-32k
+    MiniMax: LLM_BASE_URL=https://api.minimax.chat/v1 LLM_MODEL=MiniMax-M2.5
 """
 
-import json
 import os
 import sys
-import tempfile
+from pathlib import Path
+
+# Allow tools/ to be imported without pip install -ing the package
+_project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_project_root))
+
 import httpx
+from tools.mcp_base import MCPServer
 
-# Force unbuffered stdout/stdin
-sys.stdout = os.fdopen(sys.stdout.fileno(), 'wb', buffering=0)
-sys.stdin = os.fdopen(sys.stdin.fileno(), 'rb', buffering=0)
 
-# Configuration from environment
-API_KEY = os.environ.get("LLM_API_KEY", "")
-BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
-DEFAULT_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
-SERVER_NAME = os.environ.get("LLM_SERVER_NAME", "llm-chat")
+class LLMServer(MCPServer):
+    """OpenAI-compatible LLM MCP server backed by tools/mcp_base.py."""
 
-# Debug logging
-DEBUG_LOG = os.path.join(tempfile.gettempdir(), f"{SERVER_NAME}-mcp-debug.log")
+    SERVER_NAME = os.environ.get("LLM_SERVER_NAME", "llm-chat")
+    DEFAULT_MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+    BASE_URL = os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1")
+    API_KEY = os.environ.get("LLM_API_KEY", "")
+    HTTP_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "300.0"))
+    MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "4096"))
 
-def debug_log(msg):
-    try:
-        with open(DEBUG_LOG, "a") as f:
-            import datetime
-            f.write(f"{datetime.datetime.now()}: {msg}\n")
-            f.flush()
-    except:
-        pass
+    # ── Abstract method implementations ─────────────────────────────────────
 
-def log_error(msg):
-    try:
-        with open(DEBUG_LOG, "a") as f:
-            import datetime
-            f.write(f"{datetime.datetime.now()}: ERROR: {msg}\n")
-    except:
-        pass
-
-debug_log(f"=== {SERVER_NAME} MCP Server Starting (v2.0) ===")
-debug_log(f"BASE_URL: {BASE_URL}")
-debug_log(f"MODEL: {DEFAULT_MODEL}")
-debug_log(f"API_KEY set: {bool(API_KEY)}")
-
-_use_ndjson = False
-
-def send_response(response):
-    global _use_ndjson
-    json_str = json.dumps(response, separators=(',', ':'))
-    json_bytes = json_str.encode('utf-8')
-
-    if _use_ndjson:
-        output = json_bytes + b'\n'
-    else:
-        header = f"Content-Length: {len(json_bytes)}\r\n\r\n".encode('utf-8')
-        output = header + json_bytes
-
-    sys.stdout.write(output)
-    sys.stdout.flush()
-
-def call_llm(messages, model=None):
-    """Call LLM Chat Completions API"""
-    if not API_KEY:
-        return None, "LLM_API_KEY environment variable not set"
-
-    url = f"{BASE_URL.rstrip('/')}/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
-    }
-    payload = {
-        "model": model or DEFAULT_MODEL,
-        "messages": messages,
-        "max_tokens": 4096
-    }
-
-    debug_log(f"Calling LLM API: {url}")
-
-    try:
-        with httpx.Client(timeout=300.0) as client:
-            response = client.post(url, headers=headers, json=payload)
-            if response.status_code != 200:
-                error_msg = f"API error {response.status_code}: {response.text[:500]}"
-                debug_log(f"API error: {error_msg}")
-                return None, error_msg
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            debug_log(f"API success, response length: {len(content)}")
-            return content, None
-    except Exception as e:
-        debug_log(f"API exception: {str(e)}")
-        return None, str(e)
-
-def handle_request(request):
-    """Handle a JSON-RPC request"""
-    method = request.get("method", "")
-    params = request.get("params", {})
-    request_id = request.get("id")
-
-    debug_log(f"Handling method: {method}, id: {request_id}")
-
-    # Handle notifications (no id, no response needed)
-    if request_id is None:
-        if method == "notifications/initialized":
-            debug_log("Client initialized successfully")
-        return None
-
-    if method == "initialize":
+    def _get_tool_schema(self) -> dict:
         return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
+            "name": "chat",
+            "description": (
+                f"Send a message to {self.DEFAULT_MODEL} and get a response. "
+                f"Use this for research reviews, code analysis, and general AI tasks."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The prompt to send",
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": f"Model to use (default: {self.DEFAULT_MODEL})",
+                    },
+                    "system": {
+                        "type": "string",
+                        "description": "Optional system prompt",
+                    },
                 },
-                "serverInfo": {
-                    "name": SERVER_NAME,
-                    "version": "2.0.0"
-                }
-            }
+                "required": ["prompt"],
+            },
         }
 
-    elif method == "ping":
-        return {"jsonrpc": "2.0", "id": request_id, "result": {}}
+    def _call_api(
+        self,
+        messages: list[dict],
+        model: str | None,
+    ) -> tuple[str, str | None]:
+        """Call the configured OpenAI-compatible LLM API."""
+        if not self.API_KEY:
+            return "", "LLM_API_KEY environment variable is not set"
 
-    elif method == "tools/list":
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "result": {
-                "tools": [{
-                    "name": "chat",
-                    "description": f"Send a message to {DEFAULT_MODEL} and get a response. Use this for research reviews, code analysis, and general AI tasks.",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "prompt": {
-                                "type": "string",
-                                "description": "The prompt to send"
-                            },
-                            "model": {
-                                "type": "string",
-                                "description": f"Model to use (default: {DEFAULT_MODEL})"
-                            },
-                            "system": {
-                                "type": "string",
-                                "description": "Optional system prompt"
-                            }
-                        },
-                        "required": ["prompt"]
-                    }
-                }]
-            }
+        url = f"{self.BASE_URL.rstrip('/')}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.API_KEY}",
+        }
+        payload = {
+            "model": model or self.DEFAULT_MODEL,
+            "messages": messages,
+            "max_tokens": self.MAX_TOKENS,
         }
 
-    elif method == "tools/call":
-        tool_name = params.get("name", "")
-        arguments = params.get("arguments", {})
-
-        if tool_name == "chat":
-            prompt = arguments.get("prompt", "")
-            model = arguments.get("model", DEFAULT_MODEL)
-            system = arguments.get("system", "")
-
-            messages = []
-            if system:
-                messages.append({"role": "system", "content": system})
-            messages.append({"role": "user", "content": prompt})
-
-            debug_log(f"Tool call: chat, prompt length: {len(prompt)}")
-            content, error = call_llm(messages, model)
-
-            if error:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": {
-                        "content": [{"type": "text", "text": f"Error: {error}"}],
-                        "isError": True
-                    }
-                }
-
-            return {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": [{"type": "text", "text": content}]
-                }
-            }
-
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"}
-        }
-
-    else:
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {"code": -32601, "message": f"Unknown method: {method}"}
-        }
-
-def read_message():
-    """Read a single JSON-RPC message from stdin."""
-    global _use_ndjson
-
-    line = sys.stdin.readline()
-    if not line:
-        return None
-
-    line = line.decode('utf-8').rstrip('\r\n')
-
-    if line.lower().startswith("content-length:"):
         try:
-            content_length = int(line.split(":", 1)[1].strip())
-        except ValueError:
-            return None
+            with httpx.Client(timeout=self.HTTP_TIMEOUT) as client:
+                resp = client.post(url, headers=headers, json=payload)
+            if resp.status_code != 200:
+                return "", f"API error {resp.status_code}: {resp.text[:500]}"
+            data = resp.json()
+            return data["choices"][0]["message"]["content"], None
+        except Exception as exc:
+            return "", str(exc)
 
-        while True:
-            hdr = sys.stdin.readline()
-            if not hdr:
-                return None
-            hdr = hdr.decode('utf-8').rstrip('\r\n')
-            if hdr == "":
-                break
-
-        body = sys.stdin.read(content_length)
-        try:
-            return json.loads(body.decode('utf-8'))
-        except:
-            return None
-
-    elif line.startswith("{") or line.startswith("["):
-        _use_ndjson = True
-        try:
-            return json.loads(line)
-        except:
-            return None
-
-    return None
-
-def main():
-    """Main loop - read JSON-RPC messages from stdin"""
-    debug_log("Entering main loop")
-
-    while True:
-        try:
-            request = read_message()
-            if request is None:
-                debug_log("EOF, exiting")
-                break
-
-            response = handle_request(request)
-            if response:
-                send_response(response)
-
-        except Exception as e:
-            log_error(f"Exception: {e}")
-
-    debug_log("=== Server Exiting ===")
 
 if __name__ == "__main__":
-    main()
+    LLMServer().run()

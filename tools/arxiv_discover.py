@@ -12,9 +12,10 @@ import argparse
 import json
 import sys
 import time
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
-from arxiv_fetch import search
+from arxiv_client import search
 
 
 def _parse_keywords(value: str) -> list[str]:
@@ -114,8 +115,10 @@ def run_discovery(
 			if not results:
 				break
 			for item in results:
-				item["query_hit"] = [query]
-				merged.append(item)
+				rec = asdict(item) if is_dataclass(item) else dict(item)
+				rec["id"] = rec.get("arxiv_id") or rec.get("id", "")
+				rec["query_hit"] = [query]
+				merged.append(rec)
 			got += len(results)
 			start += len(results)
 			if len(results) < batch:

@@ -237,6 +237,40 @@ claude
 # 恢复流水线状态——无需手动操作
 ```
 
+## 开发环境配置
+
+```bash
+# 1. 环境配置
+cp .env.example .env    # 填写 API keys
+make install            # 安装依赖
+
+# 2. 代码质量
+make format             # ruff format
+make lint              # ruff check --fix
+make test              # pytest tests/ -v
+
+# 3. 冒烟测试
+make check-arxiv                      # 测试 arXiv API 连通性
+python3 tools/init_findings.py --check  # 检查 findings.md 状态
+python3 tools/watchdog.py --help       # 训练监控 daemon
+
+# 4. 安装 Claude Code skills
+./install.sh
+```
+
+### Make 命令
+
+| 命令 | 功能 |
+|------|------|
+| `make install` | 安装运行时依赖 |
+| `make install-dev` | 安装运行时 + 开发依赖（pytest, ruff） |
+| `make test` | 运行完整测试套件 |
+| `make lint` | ruff linting |
+| `make format` | ruff 自动格式化 |
+| `make check-arxiv` | 测试 arXiv API 连通性 |
+| `make validate` | 引用/基准/guardrails 校验 |
+| `make clean` | 清理生成的文件 |
+
 ## 配置参数
 
 | 参数 | 默认值 | 描述 |
@@ -267,9 +301,29 @@ SurveyMind/
 │   ├── gap-identify/              # 研究空白分析
 │   ├── survey-write/              # 综述生成
 │   └── [其他ML科研技能]           # 可复用组件
+├── tools/                          # CLI 脚本 + 基础设施模块
+│   ├── surveymind_run.py         # 流水线编排器（11个阶段）
+│   ├── arxiv_client.py           # 统一 arXiv API（search, fetch, download）
+│   ├── arxiv_fetch.py            # CLI arXiv 检索与下载
+│   ├── arxiv_json_extractor.py   # arXiv JSON → 语料报告
+│   ├── batch_paper_triage.py     # 批量多字段分诊（API）
+│   ├── paper_triage.py           # 单篇多字段分类
+│   ├── atomic_write.py           # 原子文件写入（temp+rename）
+│   ├── checkpoint.py              # TTL 状态持久化（flock）
+│   ├── logging_config.py        # 结构化日志（TTY 彩色输出）
+│   ├── mcp_base.py              # MCP 服务器基类
+│   ├── watchdog.py                # 训练/下载监控 daemon
+│   ├── init_findings.py           # findings.md 初始化脚本
+│   └── [其他工具]
 ├── templates/                       # 输出模板
-├── tools/                          # 工具脚本
+│   └── domain_profiles/          # 领域路由规则（JSON）
 ├── validation/                     # 验证规则（guardrails）
+├── tests/                          # pytest 测试套件
+│   ├── test_arxiv_client.py
+│   ├── test_atomic_write.py
+│   ├── test_checkpoint.py
+│   ├── test_domain_profile.py
+│   └── test_logging_config.py
 ├── surveys/                        # 按课题隔离的输出目录
 │   └── survey_<topic_slug>/
 │       ├── gate0_scope/
@@ -280,7 +334,11 @@ SurveyMind/
 │       ├── gate5_survey_write/
 │       ├── survey_trace/
 │       └── validation/
-├── CLAUDE.md                       # Session恢复与流水线状态
+├── findings.md                     # 跨 skill 研究与工程发现日志
+├── .env.example                   # 环境变量模板
+├── .mcp.example.json             # MCP 服务器配置模板
+├── pyproject.toml                  # Python 包清单
+├── Makefile                        # 开发命令
 └── README.md
 ```
 

@@ -33,12 +33,22 @@ Directory structure:
 
 import argparse
 import json
+import logging
 import os
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+# Allow tools/ to be imported without pip install -e
+_project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_project_root))
+
+from tools.logging_config import setup_logging
+
+# Set up watchdog-specific logger
+logger = setup_logging("watchdog")
 
 DEFAULT_BASE = "/tmp/aris-watchdog"
 DEFAULT_INTERVAL = 60
@@ -69,11 +79,11 @@ def register_task(base_dir, task_json):
     required = {"name", "type", "session"}
     missing = required - set(task.keys())
     if missing:
-        print(f"error: missing required fields: {missing}", file=sys.stderr)
+        logger.error("missing required fields: %s", missing)
         sys.exit(1)
 
     if task["type"] not in ("training", "download"):
-        print(f"error: type must be 'training' or 'download', got '{task['type']}'", file=sys.stderr)
+        logger.error("type must be 'training' or 'download', got '%s'", task["type"])
         sys.exit(1)
 
     # Default session_type: auto-detect or fallback to screen
@@ -93,13 +103,13 @@ def register_task(base_dir, task_json):
     tasks.append(task)
 
     paths["tasks"].write_text(json.dumps(tasks, indent=2))
-    print(f"registered: {task['name']} ({task['type']}, {task['session_type']})")
+    logger.info("registered: %s (%s, %s)", task["name"], task["type"], task["session_type"])
 
 
 def unregister_task(base_dir, name):
     paths = get_paths(base_dir)
     if not paths["tasks"].exists():
-        print(f"no tasks file found")
+        logger.warning("no tasks file found")
         return
     try:
         tasks = json.loads(paths["tasks"].read_text())
@@ -110,7 +120,7 @@ def unregister_task(base_dir, name):
     status_file = paths["status"] / f"{name}.json"
     if status_file.exists():
         status_file.unlink()
-    print(f"unregistered: {name}")
+    logger.info("unregistered: %s", name)
 
 
 # ── Session checks (tmux + screen) ──────────────────────────────
@@ -305,13 +315,14 @@ def run_watchdog(base_dir, interval):
     paths["pid"].write_text(str(os.getpid()))
 
     def handle_signal(sig, frame):
+        logger.info("received signal %d, shutting down gracefully", sig)
         paths["pid"].unlink(missing_ok=True)
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    print(f"watchdog started (pid={os.getpid()}, base={base_dir}, interval={interval}s)")
+    logger.info("watchdog started (pid=%d, base=%s, interval=%ds)", os.getpid(), base_dir, interval)
 
     while True:
         if not paths["tasks"].exists():
@@ -382,7 +393,10 @@ Examples:
     elif args.status:
         paths = get_paths(args.base_dir)
         summary = paths["status"] / "summary.txt"
-        print(summary.read_text() if summary.exists() else "no status")
+        if summary.exists():
+            print(summary.read_text(), end="")
+        else:
+            print("no status")
     else:
         run_watchdog(args.base_dir, args.interval)
 
