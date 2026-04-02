@@ -1,19 +1,17 @@
 """Tests for tools/domain_profile.py."""
 
 import copy
+
 import pytest
-from pathlib import Path
 
 from tools.domain_profile import (
     DomainProfileError,
     load_domain_profile,
-    profile_keywords,
     profile_core_keywords,
-    profile_routing_rules,
+    profile_keywords,
     profile_routing_fallback,
-    resolve_profile_path,
+    profile_routing_rules,
 )
-
 
 SAMPLE_PROFILE = {
     "name": "test-profile",
@@ -60,7 +58,7 @@ class TestLoadDomainProfile:
         import json
         p = tmp_path / "bad.json"
         p.write_text(json.dumps({"name": "no-relevance"}))
-        with pytest.raises(DomainProfileError, match="profile.relevance"):
+        with pytest.raises(DomainProfileError, match=r"profile\.relevance"):
             load_domain_profile(str(p), tmp_path)
 
     def test_empty_fallback_raises(self, tmp_path):
@@ -102,9 +100,6 @@ class TestAccessors:
 
     def test_routing_fallback_uses_default_when_missing(self, profile):
         # Override profile with no fallback set
-        import json
-        p = Path(profile.get("_path", ""))
-        # Re-load with missing fallback by modifying in-memory
         profile["routing"]["fallback_subsection"] = None
         fb = profile_routing_fallback(profile, "fallback/default")
         assert fb == "fallback/default"

@@ -1,17 +1,13 @@
 """Tests for tools/arxiv_client.py."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from tools.arxiv_client import (
     ArxivPaper,
     _parse_arxiv_id,
     looks_like_arxiv_id,
-    _parse_entry,
     metadata_to_dict,
 )
-
 
 # ── Normalisation ────────────────────────────────────────────────────────────────
 
@@ -93,7 +89,6 @@ ATOM_ENTRY = b"""<?xml version="1.0" encoding="UTF-8"?>
 
 @pytest.fixture
 def mock_urlopen(requests_mock):
-    import urllib.request
     requests_mock.register_uri(
         "GET", "https://export.arxiv.org/api/query", content=ATOM_ENTRY
     )
@@ -101,7 +96,6 @@ def mock_urlopen(requests_mock):
 
 class TestFetchMetadata:
     def test_returns_paper_on_success(self, requests_mock):
-        import urllib.request
         requests_mock.register_uri(
             "GET", "https://export.arxiv.org/api/query", content=ATOM_ENTRY
         )

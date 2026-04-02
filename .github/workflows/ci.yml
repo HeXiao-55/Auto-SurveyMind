@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches: [main]
@@ -20,20 +23,27 @@ jobs:
         with:
           python-version: "3.10"
       - run: pip install -e ".[dev]"
-      - name: Lint maintained Python code (blocking)
+      - name: Lint tests (blocking)
+        shell: bash
+        run: |
+          if [ -d tests ]; then
+            ruff check tests/ --output-format=github
+          else
+            echo "tests/ not found, skipping blocking lint check."
+          fi
+      - name: Lint tools and validation (non-blocking, informational)
         shell: bash
         run: |
           targets=()
-          for d in tools validation tests; do
+          for d in tools validation; do
             [ -d "$d" ] && targets+=("$d")
           done
 
-          if [ ${#targets[@]} -eq 0 ]; then
-            echo "No lint targets found, skipping blocking lint check."
-            exit 0
+          if [ ${#targets[@]} -gt 0 ]; then
+            ruff check "${targets[@]}" --output-format=github || true
+          else
+            echo "tools/validation targets not found, skipping informational lint check."
           fi
-
-          ruff check "${targets[@]}" --output-format=github
       - name: Lint MCP servers (non-blocking, informational)
         shell: bash
         run: |

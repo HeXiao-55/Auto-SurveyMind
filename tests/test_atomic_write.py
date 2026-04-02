@@ -1,12 +1,11 @@
 """Tests for tools/atomic_write.py."""
 
-import pytest
 import json
 
 from tools.atomic_write import (
-    atomic_write_text,
     atomic_write_bytes,
     atomic_write_json,
+    atomic_write_text,
 )
 
 

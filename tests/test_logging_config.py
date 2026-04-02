@@ -1,10 +1,8 @@
 """Tests for tools/logging_config.py."""
 
-import pytest
 import logging
-from io import StringIO
 
-from tools.logging_config import setup_logging, get_logger
+from tools.logging_config import get_logger, setup_logging
 
 
 class TestSetupLogging:
@@ -31,10 +29,13 @@ class TestSetupLogging:
     def test_idempotent_no_duplicate_handlers(self):
         logger = setup_logging("test_idempotent")
         logger.setLevel(logging.INFO)
-        count = lambda: sum(1 for h in logger.handlers if not isinstance(h, logging.NullHandler))
-        before = count()
+
+        def count_handlers() -> int:
+            return sum(1 for h in logger.handlers if not isinstance(h, logging.NullHandler))
+
+        before = count_handlers()
         setup_logging("test_idempotent")  # second call
-        after = count()
+        after = count_handlers()
         assert before == after  # no new handlers added
 
 
