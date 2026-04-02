@@ -55,6 +55,7 @@ from stages import (
     run_trace_init,
     run_trace_sync,
     run_validate,
+    run_validate_and_improve,
 )
 
 STAGES = [
@@ -71,6 +72,7 @@ STAGES = [
     "trace-sync",        # Sync paper analyses → survey_trace subsection records
     "taxonomy-alloc",   # Taxonomy-based allocation of papers to subsections
     "validate",          # Run citation/data/guardrails validation gate
+    "validate-and-improve",  # Run validation and auto-improve based on results
     "all",               # Run all stages in order
 ]
 
@@ -160,6 +162,7 @@ STAGE_HANDLERS = {
     "trace-sync": run_trace_sync,
     "taxonomy-alloc": run_taxonomy_alloc,
     "validate": run_validate,
+    "validate-and-improve": run_validate_and_improve,
 }
 
 
@@ -446,7 +449,7 @@ def main():
             "trace-init",
             "taxonomy-alloc",
             "trace-sync",
-            "validate",
+            "validate-and-improve",
         ]
         if not args.discover_arxiv:
             stages_to_run = [s for s in stages_to_run if s != "arxiv-discover"]

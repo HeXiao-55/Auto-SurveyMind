@@ -84,9 +84,11 @@ def _resolve_pdf_path(rec: dict, paper_id: str, pdf_dir: Path | None = None) -> 
         p = Path(str(val))
         if p.exists():
             return p
-    guess = Path(rec.get("source_pdf_guess", ""))
-    if guess and guess.exists():
-        return guess
+    guess_str = rec.get("source_pdf_guess", "")
+    if guess_str:
+        guess = Path(guess_str)
+        if guess.exists():
+            return guess
     if pdf_dir:
         by_safe_id = pdf_dir / f"{paper_id.replace('/', '_')}.pdf"
         if by_safe_id.exists():
@@ -429,7 +431,28 @@ def _generate_missing_analysis_drafts(
         if verbose and idx % 20 == 0:
             print(f"  processing drafts: {idx}/{len(missing_ids)}")
 
-        if (analysis_dir / f"{pid}_analysis.md").exists():
+        analysis_file = analysis_dir / f"{pid}_analysis.md"
+        benchmark_file = analysis_dir / f"{pid}_benchmark.json"
+
+        # Skip only if both analysis AND benchmark files already exist
+        if analysis_file.exists() and benchmark_file.exists():
+            if verbose:
+                print(f"  skipping {pid}: analysis and benchmark both exist")
+            continue
+
+        # If benchmark file missing but analysis exists, just extract benchmark
+        if analysis_file.exists() and not benchmark_file.exists():
+            pdf_path = _resolve_pdf_path(paper_index.get(pid, {}), pid, pdf_dir)
+            if pdf_path and pdf_path.exists():
+                try:
+                    from benchmark_extractor import extract_benchmarks_from_pdf
+                    benchmark_data = extract_benchmarks_from_pdf(str(pdf_path), pages_to_scan=15)
+                    benchmark_file.write_text(json.dumps(benchmark_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+                    if verbose:
+                        print(f"  extracted benchmarks: {pid} ({benchmark_data.get('num_benchmark_sections', 0)} sections)")
+                except Exception as exc:
+                    if verbose:
+                        print(f"  benchmark extraction failed for {pid}: {exc}")
             continue
 
         base_rec = paper_index.get(pid, {})
@@ -452,6 +475,19 @@ def _generate_missing_analysis_drafts(
             _download_pdf_for_id(pid, pdf_dir, verbose=verbose)
             pdf_path = _resolve_pdf_path(base_rec, pid, pdf_dir)
         pdf_text = _extract_pdf_text(pdf_path) if pdf_path else ""
+
+        # Extract benchmark data if PDF is available
+        if pdf_path and pdf_path.exists():
+            try:
+                from benchmark_extractor import extract_benchmarks_from_pdf
+                benchmark_data = extract_benchmarks_from_pdf(str(pdf_path), pages_to_scan=15)
+                benchmark_out = analysis_dir / f"{pid}_benchmark.json"
+                benchmark_out.write_text(json.dumps(benchmark_data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+                if verbose:
+                    print(f"  extracted benchmarks: {pid} ({benchmark_data.get('num_benchmark_sections', 0)} sections)")
+            except Exception as exc:
+                if verbose:
+                    print(f"  benchmark extraction failed for {pid}: {exc}")
 
         enriched_meta = dict(meta)
         if pdf_text:

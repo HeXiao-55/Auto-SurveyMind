@@ -25,6 +25,7 @@ from stages.survey_synthesis import (
     run_gap_identify,
     run_survey_write,
     run_taxonomy_build,
+    run_validate_and_improve,
 )
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "run_taxonomy_build",
     "run_gap_identify",
     "run_survey_write",
+    "run_validate_and_improve",
     "run_taxonomy_alloc",
     "run_trace_init",
     "run_trace_sync",
