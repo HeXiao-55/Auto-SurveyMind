@@ -1,429 +1,158 @@
-# SurveyMind: 自动化科研综述工具
+# SurveyMind：自动化科研综述智能体
 
-> 一个自主运行的AI智能体框架，用于在任意科研子领域进行全面的文献综述。从课题定义到结构化综述报告——全程自动化。
+> 面向科研主题的端到端综述构建：从模糊选题到结构化综述草稿。
 
-## 概述
+[English](README.md) | [简体中文](README_CN.md)
 
-SurveyMind 自动化了撰写科研综述论文的整个流程：
+## 项目做什么
 
-- **输入**：一个科研子领域（占位符：`{TOPIC}`）
-- **输出**：包含分类体系、基准对比分析和研究空白识别的结构化综述报告
-- **流程**：课题提炼 → 多源文献检索 → 论文分类 → 分类体系构建 → 空白分析 → 综述撰写
+SurveyMind 提供两种互补的工作方式：
 
-CLI 编排器默认在 scope 确认后先执行广覆盖检索阶段：
+- **Skill 流水线（智能体式）**：通过 `/survey-brainstorm`、`/research-lit`、`/paper-analysis`、`/taxonomy-build`、`/gap-identify`、`/survey-write` 等技能逐阶段推进
+- **CLI 流水线（可脚本化）**：通过 `tools/surveymind_run.py` 运行可复现阶段，便于自动化、CI 和批处理
 
-- `arxiv-discover`：根据 `SURVEY_SCOPE.md` + `--topic-keywords` 广泛检索 arXiv，输出 `gate1_research_lit/arxiv_results.json`
-- `corpus-extract`：在上述 `arxiv_results.json` 基础上做相关性分层和报告生成
+每个综述任务都会被隔离输出到：
 
-`stage all` 默认顺序：
+`surveys/survey_<topic_slug>/`
 
-- `brainstorm` -> `arxiv-discover` -> `corpus-extract` -> `batch-triage`
-- `paper-download` -> `paper-analysis` -> `trace-init` -> `taxonomy-alloc` -> `trace-sync` -> `validate`
+并按 gate 分层：
 
-默认输出目录采用按 survey 隔离、按 gate 分层：
+- `gate0_scope`
+- `gate1_research_lit`
+- `gate2_paper_analysis`
+- `gate3_taxonomy`
+- `gate4_gap_analysis`
+- `gate5_survey_write`
 
-- `surveys/survey_<topic_slug>/gate0_scope`
-- `surveys/survey_<topic_slug>/gate1_research_lit`
-- `surveys/survey_<topic_slug>/gate2_paper_analysis`
-- `surveys/survey_<topic_slug>/gate3_taxonomy`
-- `surveys/survey_<topic_slug>/gate4_gap_analysis`
-- `surveys/survey_<topic_slug>/gate5_survey_write`
+## 快速开始
 
-系统自主运行——课题提炼、文献检索、结构化分类的论文分析、证据提取、分类体系构建、空白识别和学术写作全部自动化。
-
-## 架构
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SurveyMind 工作流                              │
-│                                                                       │
-│  /survey-pipeline "{TOPIC}"                                      │
-│        │                                                              │
-│        ▼                                                              │
-│  ┌────────────────┐                                                   │
-│  │ Stage 0        │                                                   │
-│  │ /survey-brainstorm │ ──▶ SURVEY_SCOPE.md                         │
-│  └───────┬────────┘                                                   │
-│          │                                                            │
-│          ▼                                                            │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │  流水线（默认自动继续）                                           │ │
-│  │                                                                │ │
-│  │  Stage 1 ──▶ Stage 2 ──▶ Stage 3 ──▶ Stage 4 ──▶ Stage 5    │ │
-│  │  文献检索   论文分析   分类体系   空白识别     综述撰写         │ │
-│  │  优先级驱动   构建       Gap分析     生成           │          │ │
-│  │    │          │           │           │            │          │ │
-│  │    ▼          ▼           ▼           ▼            ▼          │ │
-│  │  paper_   paper_     taxonomy   gap_        SURVEY_          │ │
-│  │  list    analysis/   .md     analysis.md  DRAFT.md          │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-│          │                   │                    │                  │
-│          ▼                   ▼                    ▼                  │
-│  ┌────────────────────────────────────────────────────────────┐     │
-│  │                    结构化综述报告                              │     │
-│  │  • 按方法论和应用构建的层次化分类体系                         │     │
-│  │  • 基准测试对比表（精度、效率）                              │     │
-│  │  • 研究空白与未来方向                                        │     │
-│  │  • 证据绑定（每个结论均引用原文）                            │     │
-│  └────────────────────────────────────────────────────────────┘     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## 核心功能
-
-| 功能 | 描述 |
-|------|------|
-| **自动继续模式** | 首次确认后，流水线自主运行全程——无需反复确认 |
-| **课题提炼** | `/survey-brainstorm` 将模糊主题联合精炼为聚焦的综述范围 |
-| **多源检索** | ArXiv、DBLP、Semantic Scholar、Web——自动查找相关论文 |
-| **结构化论文分析** | 多维度分类从收集的论文语料库中动态提取——分类维度不预先固定，而是从文献本身涌现 |
-| **证据绑定** | 每个分类结论均引用原文——完全可审计 |
-| **自动分类体系** | 从分类后的论文构建层次化分类体系（方法→子方法→具体技术） |
-| **空白分析** | 识别未探索的组合、未充分研究的方向、基准测试缺口 |
-| **基准综合** | 从各论文中提取并标准化数据，形成统一对比表 |
-| **综述生成** | 生成符合学术规范的综述文档 |
-
-## 分类体系的涌现机制
-
-分类体系**不是预定义的**——而是从收集的论文语料库中归纳得出的。第二阶段（论文分析）从每篇论文中动态提取分类维度，包括：
-
-- **方法维度**：该论文属于哪种技术路线（如：旋转、重构、剪枝、蒸馏）？
-- **问题维度**：它解决了什么问题（如：离群值处理、梯度流、表示崩溃）？
-- **评测维度**：它汇报了哪些指标和基准？
-- **范围维度**：涵盖了哪些模型类型、位宽和训练范式？
-
-第三阶段（`/taxonomy-build`）随后将所有论文聚类为**层次化结构**——分组完全从所发现的论文中导出，而非来自任何固定模式。因此，生成的分类体系对每个综述主题和语料库都是独特的。
-
-## 工作流
-
-### 全流程综述
+### 1）安装
 
 ```bash
-/survey-pipeline "{TOPIC}"
+cp .env.example .env
+make install
+./install.sh
 ```
 
-单命令：头脑风暴 → 检索 → 分析 → 分类 → 构建分类体系 → 识别空白 → 撰写综述。
-
-**自动继续**：默认情况下流水线自动通过所有关卡（`AUTO_PROCEED=true`）。设为 `false` 可在每个关卡暂停等待手动确认。
-
-**状态持久化**：每个关卡完成后自动保存状态到 `WORKLOG.md` 和 `findings.md`；新 session 启动时 agent 自动读取这些文件恢复上下文，无需手动操作。
-
-### 分步骤使用
-
-| 步骤 | 命令 | 功能 |
-|------|------|------|
-| 0 | `/survey-brainstorm "宽泛主题"` | 将模糊主题精炼为聚焦范围（仅当主题模糊时） |
-| 1 | `/research-lit "子领域"` | 多源文献检索 |
-| 1.5 | `python3 tools/surveymind_run.py --stage paper-download` | 按优先级批量下载 PDF（默认 Tier1+Tier2），为深度分析做准备 |
-| 2 | `/paper-analysis "子领域"` | 基于优先级（默认Tier1+Tier2）执行深度分析并输出覆盖报告 |
-| 3 | `/taxonomy-build "子领域"` | 从分类结果构建层次化分类体系 |
-| 4 | `/gap-identify "子领域"` | 识别研究空白和未来方向 |
-| 5 | `/survey-write "子领域"` | 生成结构化综述文档 |
-
-按需扩展 Tier3/Tier4（预留接口）：
+### 2）Skill 工作流（首次使用推荐）
 
 ```bash
-# 按需下载 Tier3/Tier4 的 PDF
+claude
+> /survey-brainstorm "你的模糊选题"
+> /survey-pipeline "你的精炼主题"
+```
+
+### 3）CLI 工作流
+
+```bash
+python3 tools/surveymind_run.py --stage brainstorm \
+  --scope-topic "你的主题描述" \
+  --survey-name "your_survey_name" \
+  --topic-keywords "keyword1,keyword2,keyword3"
+
+python3 tools/surveymind_run.py --stage all \
+  --survey-name "your_survey_name" \
+  --topic-keywords "keyword1,keyword2,keyword3"
+```
+
+## CLI 阶段（`tools/surveymind_run.py`）
+
+当前支持阶段：
+
+- `brainstorm`
+- `arxiv-discover`
+- `corpus-extract`
+- `paper-download`
+- `paper-analysis`
+- `batch-triage`
+- `taxonomy-build`
+- `gap-identify`
+- `survey-write`
+- `trace-init`
+- `trace-sync`
+- `taxonomy-alloc`
+- `validate`
+- `validate-and-improve`
+- `all`
+
+`--stage all` 默认执行顺序：
+
+1. `brainstorm`
+2. `arxiv-discover`（可通过 `--no-discover-arxiv` 关闭）
+3. `corpus-extract`
+4. `batch-triage`
+5. `paper-download`
+6. `paper-analysis`
+7. `taxonomy-build`
+8. `gap-identify`
+9. `survey-write`
+10. `trace-init`
+11. `taxonomy-alloc`
+12. `trace-sync`
+13. `validate-and-improve`
+
+## 常用命令
+
+```bash
+# 测试与质量检查
+make test
+make lint
+make format
+
+# arXiv 连通性冒烟测试
+make check-arxiv
+
+# 仅执行验证
+python3 validation/run_validation.py --scope all --strict --retry 2
+```
+
+Tier 范围控制示例：
+
+```bash
+# 下载 Tier1+Tier2 PDF（默认行为）
 python3 tools/surveymind_run.py --stage paper-download \
-  --survey-name "{SURVEY_NAME}" \
-  --download-tier-scope tier3_tier4
+  --survey-name "your_survey_name" \
+  --download-tier-scope tier1_tier2
 
-# 按需对 Tier3/Tier4 做深度分析
+# 按需分析 Tier3+Tier4
 python3 tools/surveymind_run.py --stage paper-analysis \
-  --survey-name "{SURVEY_NAME}" \
+  --survey-name "your_survey_name" \
   --analysis-tier-scope tier3_tier4 \
   --analysis-mode deep+coverage
 ```
 
-### CLI 阶段说明（surveymind_run.py）
+## 核心目录
 
-`tools/surveymind_run.py` 当前提供 10 个可执行阶段：
-
-| 阶段 | 调用工具 | 说明 |
-|------|----------|------|
-| `brainstorm` | 进程内 | 根据 `--scope-topic` + `--topic-keywords` 生成 `SURVEY_SCOPE.md` |
-| `arxiv-discover` | `arxiv_discover.py` | 基于 scope 的广覆盖 arXiv 检索，输出 gate1 `arxiv_results.json` |
-| `corpus-extract` | `arxiv_json_extractor.py` | 解析 `arxiv_results.json` 并生成分层语料报告 |
-| `batch-triage` | `batch_paper_triage.py` | 对 `arxiv_results.json` 全量进行多字段分诊 |
-| `paper-download` | 进程内 + `arxiv_fetch.py` | 按优先级确保本地 PDF 可用（默认 Tier1+Tier2） |
-| `paper-analysis` | 进程内 + `paper_triage.py` 回退 | 按优先级执行深度分析并生成覆盖率报告 |
-| `trace-init` | `survey_trace_init.py` | 解析 LaTeX 并创建 `survey_trace/` 目录树 |
-| `taxonomy-alloc` | `taxonomy_alloc.py` | 基于 `taxonomy.md` 回填分析字段与分配映射 |
-| `trace-sync` | `survey_trace_sync.py` | 同步分析结果到 `survey_trace/` 子章节记录 |
-| `validate` | `validation/run_validation.py` | 引用、基准与 guardrails 校验 |
-
-CLI 常用示例：
-
-```bash
-# 全流程
-python3 tools/surveymind_run.py --stage all \
-  --survey-name "{SURVEY_NAME}" \
-  --topic-keywords "{KEYWORDS}"
-
-# 仅下载优先级论文 PDF
-python3 tools/surveymind_run.py --stage paper-download \
-  --survey-name "{SURVEY_NAME}" \
-  --download-tier-scope tier1_tier2
-
-# 仅执行 taxonomy 驱动分配
-python3 tools/surveymind_run.py --stage taxonomy-alloc \
-  --survey-name "{SURVEY_NAME}" \
-  --verbose
-```
-
-### 验证关卡（建议在撰写最终稿前运行）
-
-```bash
-python3 validation/run_validation.py --scope all --strict --retry 2
-```
-
-这将检查引用完整性、基准数据合理性，以及路径级别的保护guardrails。
-
-## 输出示例
-
-工作流产出结构化综述报告：
-
-```markdown
-# 综述：{TOPIC}
-
-## 1. 引言
-## 2. 背景
-
-## 3. 分类体系
-
-### 3.1 方法家族 A
-#### 3.1.1 子方法 A1
-- 代表工作：Paper-A、Paper-B、...
-#### 3.1.2 子方法 A2
-- 代表工作：Paper-C、...
-
-### 3.2 方法家族 B
-### 3.3 系统与部署方法
-
-## 4. 基准对比
-
-| 方法 | 范式 | 指标A | 指标B | 延迟 | 资源占用 |
-|------|------|-------|-------|------|----------|
-| Method-A | Paradigm-A | 0.81 | 0.74 | 1.0x | 2.1GB |
-| Method-B | Paradigm-B | 0.79 | 0.77 | 0.9x | 1.8GB |
-
-## 5. 研究空白
-
-1. **未探索组合**：方法家族A + 范式B 在场景C中的组合研究不足
-2. **基准缺口**：缺乏覆盖效果 + 效率 + 资源成本的统一评测协议
-3. **方法论缺口**：关键失败模式与稳健性边界缺少系统分析
-```
-
-## 快速开始
-
-```bash
-# 1. 克隆并安装（或本地复制）
-git clone <REPO_URL>  # 或：cp -r /path/to/SurveyMind .
-cd SurveyMind
-./install.sh
-
-# 2. 配置 API keys（可选）
-export ARXIV_API_KEY=your_key    # 增强检索
-export GEMINI_API_KEY=your_key   # 论文插图
-
-# 3. 运行综述
-claude
-> /survey-pipeline "大语言模型高效推理"
-
-# 占位符写法
-> /survey-pipeline "{TOPIC}"
-
-# 断点续行：新 session 启动时 agent 自动读取 WORKLOG.md + findings.md
-# 恢复流水线状态——无需手动操作
-```
-
-## 开发环境配置
-
-```bash
-# 1. 环境配置
-cp .env.example .env    # 填写 API keys
-make install            # 安装依赖
-
-# 2. 代码质量
-make format             # ruff format
-make lint              # ruff check --fix
-make test              # pytest tests/ -v
-
-# 3. 冒烟测试
-make check-arxiv                      # 测试 arXiv API 连通性
-python3 tools/init_findings.py --check  # 检查 findings.md 状态
-python3 tools/watchdog.py --help       # 训练监控 daemon
-
-# 4. 安装 Claude Code skills
-./install.sh
-```
-
-### Make 命令
-
-| 命令 | 功能 |
-|------|------|
-| `make install` | 安装运行时依赖 |
-| `make install-dev` | 安装运行时 + 开发依赖（pytest, ruff） |
-| `make test` | 运行完整测试套件 |
-| `make lint` | ruff linting |
-| `make format` | ruff 自动格式化 |
-| `make check-arxiv` | 测试 arXiv API 连通性 |
-| `make validate` | 引用/基准/guardrails 校验 |
-| `make clean` | 清理生成的文件 |
-
-## 配置参数
-
-| 参数 | 默认值 | 描述 |
-|------|--------|------|
-| `--topic` | 必填 | 要综述的科研子领域 |
-| `--depth` | `standard` | `quick`（20篇）/ `standard`（50篇）/ `comprehensive`（100+篇） |
-| `--sources` | `all` | `arxiv`、`semantic`、`dblp`、`web`、`zotero`、`local` 或 `all` |
-| `--output` | `survey.md` | 输出文件路径 |
-
-**流水线常量**（位于 `skills/survey-pipeline/SKILL.md`）：
-
-| 常量 | 默认值 | 描述 |
-|------|--------|------|
-| `AUTO_PROCEED` | `true` | 自动通过所有关卡，无需用户确认 |
-| `MAX_PAPERS` | `20` | 最多分析的论文数 |
-| `MIN_PAPERS_FOR_TAXONOMY` | `5` | 构建分类体系所需的最少论文数 |
-
-## 项目结构
-
-```
+```text
 SurveyMind/
-├── skills/                          # 模块化 skill 组件
-│   ├── survey-pipeline/            # 端到端编排器
-│   ├── survey-brainstorm/          # 课题提炼与范围定义
-│   ├── research-lit/              # 文献检索
-│   ├── paper-analysis/            # 论文深度分析与覆盖校验（优先级驱动）
-│   ├── taxonomy-build/            # 分类体系构建
-│   ├── gap-identify/              # 研究空白分析
-│   ├── survey-write/              # 综述生成
-│   └── [其他ML科研技能]           # 可复用组件
-├── tools/                          # CLI 脚本 + 基础设施模块
-│   ├── surveymind_run.py         # 流水线编排器（11个阶段）
-│   ├── arxiv_client.py           # 统一 arXiv API（search, fetch, download）
-│   ├── arxiv_fetch.py            # CLI arXiv 检索与下载
-│   ├── arxiv_json_extractor.py   # arXiv JSON → 语料报告
-│   ├── batch_paper_triage.py     # 批量多字段分诊（API）
-│   ├── paper_triage.py           # 单篇多字段分类
-│   ├── atomic_write.py           # 原子文件写入（temp+rename）
-│   ├── checkpoint.py              # TTL 状态持久化（flock）
-│   ├── logging_config.py        # 结构化日志（TTY 彩色输出）
-│   ├── mcp_base.py              # MCP 服务器基类
-│   ├── watchdog.py                # 训练/下载监控 daemon
-│   ├── init_findings.py           # findings.md 初始化脚本
-│   └── [其他工具]
-├── templates/                       # 输出模板
-│   └── domain_profiles/          # 领域路由规则（JSON）
-├── validation/                     # 验证规则（guardrails）
-├── tests/                          # pytest 测试套件
-│   ├── test_arxiv_client.py
-│   ├── test_atomic_write.py
-│   ├── test_checkpoint.py
-│   ├── test_domain_profile.py
-│   └── test_logging_config.py
-├── surveys/                        # 按课题隔离的输出目录
-│   └── survey_<topic_slug>/
-│       ├── gate0_scope/
-│       ├── gate1_research_lit/
-│       ├── gate2_paper_analysis/
-│       ├── gate3_taxonomy/
-│       ├── gate4_gap_analysis/
-│       ├── gate5_survey_write/
-│       ├── survey_trace/
-│       └── validation/
-├── findings.md                     # 跨 skill 研究与工程发现日志
-├── .env.example                   # 环境变量模板
-├── .mcp.example.json             # MCP 服务器配置模板
-├── pyproject.toml                  # Python 包清单
-├── Makefile                        # 开发命令
-└── README.md
+├── skills/                 # Skill 定义与流水线
+├── tools/                  # CLI 工具与编排器
+├── templates/              # 模板与 domain profiles
+├── validation/             # 验证规则与运行器
+├── tests/                  # pytest 测试
+├── surveys/                # 按 survey 隔离输出
+├── .mcp.example.json       # MCP 配置模板
+├── .env.example            # 环境变量模板
+├── Makefile
+├── README.md
+└── README_CN.md
 ```
 
+## MCP 与集成
 
+SurveyMind 支持基于 MCP 的外部集成，建议从以下位置开始：
 
----
+- `.mcp.example.json`
+- `mcp-servers/`
+- `tools/mcp_base.py`（新增 MCP server 适配器的基类）
 
-## 故障排除
+## 故障排查
 
-### SSL 证书错误 (macOS)
-
-如果从 arXiv 下载时遇到 SSL 证书错误：
-
-```bash
-# 方法 1: 通过 Homebrew 安装证书
-brew install curl-ca-bundle
-
-# 方法 2: 运行 Python 证书安装程序
-/Applications/Python\ 3.x/Install\ Certificates.command
-
-# 方法 3: 安装 certifi 包
-pip install certifi
-/Applications/Python\ 3.x/Install\ Certificates.command
-```
-
-### arXiv 下载超时
-
-如果下载速度慢或超时：
-
-1. 检查网络连接
-2. 尝试使用代理或 VPN
-3. 使用 `--depth quick` 模式减少论文数量
-4. 使用本地论文：`--sources local`
-
-### 未找到论文
-
-如果搜索返回空结果：
-
-1. 尝试扩大搜索主题（例如：用"机器学习"代替"具体技术"）
-2. 检查拼写和关键词变体
-3. 确保已设置 API keys
-4. 尝试不同来源：`--sources all`
-
-### 找不到 Skill
-
-如果 `/survey-pipeline` 命令无法识别：
-
-```bash
-# 重新运行安装
-cd SurveyMind
-./install.sh
-
-# 验证 skills 已安装
-ls ~/.claude/skills/
-```
-
-### 分析结果为空
-
-如果论文分析产生空结果：
-
-1. 验证 PDF 下载成功
-2. 检查 `surveys/survey_<topic_slug>/gate1_research_lit/paper_list.json` 是否存在
-3. 确保论文格式可读（未加密）
-
-### 内存问题
-
-处理大型综述（100+ 论文）时：
-
-1. 使用 `--depth standard` 而非 `--depth comprehensive`
-2. 分批处理论文
-3. 运行之间清除中间文件
-
-## 引用
-
-如果这个工具对你的研究有帮助，请引用：
-
-```bibtex
-@software{surveymind,
-  title = {SurveyMind: 自动化科研综述工具},
-  author = {[作者]},
-  year = {2026},
-  url = {[仓库地址]}
-}
-```
+- **找不到 Skill**：重新执行 `./install.sh`
+- **未检索到论文**：扩大关键词后重跑 `arxiv-discover`
+- **下载超时**：先缩小范围（`--literature-scope focused`）
+- **trace-init 缺少 LaTeX 文件**：传入 `--survey-tex` 或使用 `--trace-init-missing-policy skip`
 
 ## 许可证
 
-MIT 许可证——详见 [LICENSE](LICENSE)。
+MIT License — 详见 [LICENSE](LICENSE)。

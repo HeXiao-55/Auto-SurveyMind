@@ -33,7 +33,7 @@
 
 # Exclude specific folders
 my idea/
-tpami_tem/
+surveys/
 
 # OS files
 .DS_Store
@@ -48,3 +48,7 @@ __pycache__/
 # Node
 node_modules/
 package-lock.json
+
+tmp/
+reports/
+paper_analysis_results/
