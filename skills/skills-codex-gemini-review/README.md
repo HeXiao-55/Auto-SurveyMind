@@ -157,16 +157,10 @@ Operational note:
 - on the same setup, a later retry completed sync review, async `review_start` -> `review_status`, and threaded `review_reply_start` -> `review_status` successfully with `GEMINI_REVIEW_MODEL=gemini-flash-latest`
 - for long prompts, prefer the async `review_start` / `review_reply_start` + `review_status` path
 
-## References
+## Acknowledgments (upstream, GitHub)
 
-- Upstream overlay pattern from ARIS:
-  - <https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/skills/skills-codex-claude-review>
-  - <https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/mcp-servers/claude-review>
-- Local Gemini reviewer bridge in this repo:
-  - `mcp-servers/gemini-review/README.md`
-- Gemini backends referenced by this overlay:
-  - Official Gemini API: <https://ai.google.dev/api>
-  - Official Gemini CLI: <https://github.com/google-gemini/gemini-cli>
-  - AI Studio API key entry: <https://aistudio.google.com/apikey>
+- [Auto-claude-code-research-in-sleep — skills-codex-claude-review](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/skills/skills-codex-claude-review)
+- [Auto-claude-code-research-in-sleep — mcp-servers/claude-review](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/mcp-servers/claude-review)
+- [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)
 
-This package keeps the upstream ARIS skill shape, but swaps the reviewer transport to the local `gemini-review` bridge. It now covers every predefined Codex skill in this repo that previously depended on a secondary Codex reviewer or `mcp__codex__codex` review step. We intentionally did not directly depend on a generic Gemini MCP server package because the ARIS review skills rely on the narrow `review*` tool contract, resumable review-thread behavior, and now optional local-image review for poster PNGs.
+Implementation details for the local bridge live under `mcp-servers/gemini-review/` in this repository.

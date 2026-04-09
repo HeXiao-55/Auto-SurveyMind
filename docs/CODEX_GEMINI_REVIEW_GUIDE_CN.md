@@ -24,8 +24,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep
+cd /path/to/SurveyMind
 
 mkdir -p ~/.codex/skills
 cp -a skills/skills-codex/* ~/.codex/skills/
@@ -36,6 +35,8 @@ cp mcp-servers/gemini-review/server.py ~/.codex/mcp-servers/gemini-review/server
 cp mcp-servers/gemini-review/README.md ~/.codex/mcp-servers/gemini-review/README.md
 codex mcp add gemini-review --env GEMINI_REVIEW_BACKEND=api -- python3 ~/.codex/mcp-servers/gemini-review/server.py
 ```
+
+**致谢（上游）：** 本 overlay 的布局与审稿接入方式参考了开源项目 [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)。
 
 推荐凭证文件：
 
@@ -60,9 +61,8 @@ chmod 600 ~/.gemini/.env
 - Google AI Studio / Gemini API 在支持地区提供免费层；这**不要求**你先订阅 Gemini Advanced / Google One AI Premium。
 - 免费层可用模型、速率限制和配额会变化，不应把某个固定额度或旧模型示例写成长期承诺。
 - 免费层下的 prompt / response 处理条款与付费层不同；如果涉及敏感数据，必须先核对官方当前条款。
-- 官方入口与定价说明：
-  - API key / AI Studio：<https://aistudio.google.com/apikey>
-  - Gemini API 定价与免费层：<https://ai.google.dev/gemini-api/docs/pricing>
+- API Key、定价与条款请以 Google 当前公开的 Gemini 文档为准（链接会随时间变化）。
+- CLI 相关可参考 GitHub：[google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)。
 
 ## 可选 CLI fallback
 

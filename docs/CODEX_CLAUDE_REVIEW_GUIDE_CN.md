@@ -23,8 +23,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep
+cd /path/to/SurveyMind
 
 mkdir -p ~/.codex/skills
 cp -a skills/skills-codex/* ~/.codex/skills/
@@ -34,6 +33,8 @@ mkdir -p ~/.codex/mcp-servers/claude-review
 cp mcp-servers/claude-review/server.py ~/.codex/mcp-servers/claude-review/server.py
 codex mcp add claude-review -- python3 ~/.codex/mcp-servers/claude-review/server.py
 ```
+
+**致谢（上游）：** 本 overlay 的布局与审稿接入方式参考了开源项目 [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)。
 
 如果你的 Claude 登录依赖 `claude-aws` 之类的 shell helper，请改用 wrapper：
 

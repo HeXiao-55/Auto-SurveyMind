@@ -161,7 +161,7 @@ Generate publication-quality illustrations using a **multi-stage workflow** with
 # Check API key
 if [ -z "$GEMINI_API_KEY" ]; then
     echo "ERROR: GEMINI_API_KEY not set"
-    echo "Get your key from: https://aistudio.google.com/app/apikey"
+    echo "Set GEMINI_API_KEY (see Google Gemini / AI Studio documentation for obtaining a key)."
     echo "Set it: export GEMINI_API_KEY='your-key'"
     exit 1
 fi

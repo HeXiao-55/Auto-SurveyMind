@@ -15,11 +15,13 @@
 
 ## 2. Setup
 
-### 2.1 Clone the repo
+### 2.1 Open this repository locally
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
+cd /path/to/SurveyMind
 ```
+
+**Acknowledgments (upstream):** Parts of these workflows were informed by the open-source project [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep).
 
 > **Important:** Open this repo (or add it as a workspace folder) in Cursor. The `@skills/...` references throughout this guide use Cursor's `@`-file feature, which only resolves files within your open workspace. If you work in a separate project, either copy the `skills/` folder into it or add the ARIS repo as a second workspace folder (File → Add Folder to Workspace).
 

@@ -27,7 +27,7 @@ If none exist, ask the user to describe the paper's contribution in 3-5 sentence
 
 ## Orchestra-Guided Writing Overlay
 
-Keep the existing workflow and outputs, but use the shared references below to improve the quality of the story and outline:
+Keep the existing `insleep` workflow and outputs, but use the shared references below to improve the quality of the story and outline:
 
 - Read `../shared-references/writing-principles.md` when framing the Abstract, Introduction, Related Work, or hero figure
 - Read `../shared-references/venue-checklists.md` before freezing the outline for a specific venue
@@ -187,7 +187,7 @@ For each section, list required citations:
 - §3 Method: [paper11] (baseline), [paper12] (technique we build on)
 ```
 
-**Citation rules** (from claude-scholar + Imbad0202/academic-research-skills):
+**Citation rules** (from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) + [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)):
 1. NEVER generate BibTeX from memory — always verify via search or existing .bib files
 2. Every citation must be verified: correct authors, year, venue
 3. Flag any citation you're unsure about with `[VERIFY]`

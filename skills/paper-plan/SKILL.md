@@ -199,7 +199,7 @@ For each section, list required citations:
 - §3 Method: [paper11] (baseline), [paper12] (technique we build on)
 ```
 
-**Citation rules** (from claude-scholar + Imbad0202/academic-research-skills):
+**Citation rules** (from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) + [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)):
 1. NEVER generate BibTeX from memory — always verify via search or existing .bib files
 2. Every citation must be verified: correct authors, year, venue
 3. Flag any citation you're unsure about with `[VERIFY]`
@@ -281,4 +281,4 @@ Save the final outline to `PAPER_PLAN.md` in the project root:
 
 ## Acknowledgements
 
-Outline methodology inspired by [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills) (claim-evidence mapping), [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) (citation verification), and [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills) (claim verification protocol). The writing-framing overlay in this hybrid pack is adapted from Orchestra Research's paper-writing guidance.
+Outline methodology inspired by [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills) (claim-evidence mapping), [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) (citation verification), and [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills) (claim verification protocol).

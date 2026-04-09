@@ -141,19 +141,9 @@ Poll later:
 
 When complete, `review_status` returns the same reviewer payload fields as the synchronous tools, including `threadId`, `response`, `model`, `backend`, and `stop_reason`.
 
-## Provenance and References
+## Acknowledgments (upstream, GitHub)
 
-- Upstream interaction pattern: ARIS `claude-review` bridge and `skills-codex-claude-review` in `Auto-claude-code-research-in-sleep`
-  - <https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/mcp-servers/claude-review>
-  - <https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/skills/skills-codex-claude-review>
-- Gemini backends used by this bridge:
-  - Official Gemini API docs: <https://ai.google.dev/api>
-  - Official Gemini CLI: <https://github.com/google-gemini/gemini-cli>
-- Gemini API access and pricing:
-  - API key / AI Studio entry: <https://aistudio.google.com/apikey>
-  - Gemini API pricing: <https://ai.google.dev/gemini-api/docs/pricing>
-- MCP protocol reference:
-  - <https://modelcontextprotocol.info/specification/>
-- Related generic Gemini MCP server example:
-  - `eLyiN/gemini-bridge`: <https://github.com/eLyiN/gemini-bridge>
-  - We inspected this class of generic Gemini MCP servers, but kept a thin compatibility adapter here because their tool schema and session model do not match the ARIS review-only bridge directly.
+- [Auto-claude-code-research-in-sleep — mcp-servers/claude-review](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/mcp-servers/claude-review)
+- [Auto-claude-code-research-in-sleep — skills-codex-claude-review](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/skills/skills-codex-claude-review)
+- [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)
+- [eLyiN/gemini-bridge](https://github.com/eLyiN/gemini-bridge)

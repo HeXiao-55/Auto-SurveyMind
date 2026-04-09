@@ -224,14 +224,14 @@ import re
 
 This prevents bib bloat (e.g., 948 lines → 215 lines in testing).
 
-**Citation verification rules (from claude-scholar + Imbad0202):**
+**Citation verification rules (from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) + [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)):**
 1. Every BibTeX entry must have: author, title, year, venue/journal
 2. Prefer published venue versions over arXiv preprints (if published)
 3. Use consistent key format: `{firstauthor}{year}{keyword}` (e.g., `ho2020denoising`)
 4. Double-check year and venue for every entry
 5. Remove duplicate entries (same paper with different keys)
 
-### Step 5: De-AI Polish (from kgraph57/paper-writer-skill)
+### Step 5: De-AI Polish (from [kgraph57/paper-writer-skill](https://github.com/kgraph57/paper-writer-skill))
 
 After drafting all sections, scan for common AI writing patterns and fix them:
 
@@ -273,7 +273,7 @@ After this start call, immediately save the returned `jobId` and poll `mcp__clau
 
 Apply CRITICAL and MAJOR fixes. Document MINOR issues for the user.
 
-### Step 7: Reverse Outline Test (from Research-Paper-Writing-Skills)
+### Step 7: Reverse Outline Test (from [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills))
 
 After drafting all sections:
 
@@ -334,4 +334,4 @@ De-AI patterns from [kgraph57/paper-writer-skill](https://github.com/kgraph57/pa
 
 ## Acknowledgements
 
-Writing methodology adapted from [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills) (CCF award-winning methodology). Citation verification from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) and [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills). De-AI polish from [kgraph57/paper-writer-skill](https://github.com/kgraph57/paper-writer-skill). Backup mechanism from [baoyu-skills](https://github.com/jimliu/baoyu-skills).
+Writing methodology adapted from [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills). Citation verification from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) and [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills). De-AI polish from [kgraph57/paper-writer-skill](https://github.com/kgraph57/paper-writer-skill). Backup mechanism from [baoyu-skills](https://github.com/jimliu/baoyu-skills).

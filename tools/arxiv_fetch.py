@@ -39,10 +39,7 @@ from pathlib import Path
 
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 _API_BASE = "https://export.arxiv.org/api/query"
-_USER_AGENT = (
-    "arxiv-skill/1.0 "
-    "(github.com/wanshuiyin/Auto-claude-code-research-in-sleep)"
-)
+_USER_AGENT = "surveymind-arxiv-fetch/1.0 (+https://arxiv.org/help/tos)"
 _MIN_PDF_BYTES = 10_240
 _SEARCH_TIMEOUT_SECONDS = 45
 _SEARCH_MAX_RETRIES = 4

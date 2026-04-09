@@ -24,8 +24,7 @@ The install order matters:
 ## Install
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep
+cd /path/to/SurveyMind
 
 mkdir -p ~/.codex/skills
 cp -a skills/skills-codex/* ~/.codex/skills/
@@ -36,6 +35,8 @@ cp mcp-servers/gemini-review/server.py ~/.codex/mcp-servers/gemini-review/server
 cp mcp-servers/gemini-review/README.md ~/.codex/mcp-servers/gemini-review/README.md
 codex mcp add gemini-review --env GEMINI_REVIEW_BACKEND=api -- python3 ~/.codex/mcp-servers/gemini-review/server.py
 ```
+
+**Acknowledgments (upstream):** The overlay layout and reviewer wiring follow patterns from [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep).
 
 Recommended credential file:
 
@@ -60,9 +61,8 @@ The bridge auto-loads `~/.gemini/.env` if present.
 - Google AI Studio / Gemini API has a free tier in eligible countries; this does **not** require a Gemini Advanced / Google One AI Premium subscription.
 - Free-tier model availability and rate limits change over time, so do not treat any single quota number or older model example as permanent.
 - On the free tier, prompts and responses may be used to improve Google's products; do not position this path as suitable for sensitive data unless the user has reviewed the current official terms.
-- Official references:
-  - API key / AI Studio entry: <https://aistudio.google.com/apikey>
-  - Gemini API pricing and free tier: <https://ai.google.dev/gemini-api/docs/pricing>
+- For API keys, pricing, and terms, use Google’s current Gemini documentation (links change frequently).
+- GitHub reference for CLI-style workflows: [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli).
 
 ## Optional CLI fallback
 

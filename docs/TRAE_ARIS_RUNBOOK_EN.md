@@ -17,11 +17,13 @@ Use ARIS research workflows in Trae without relying on Claude Code `/skill-name`
 
 It is recommended to create a dedicated Trae agent for ARIS workflows to avoid conflicts with other agents and to keep role instructions stable.
 
-### 2.1 Clone the repository and configure Skills
+### 2.1 Open the repository locally and configure Skills
 
 ```powershell
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
+cd C:\path\to\SurveyMind
 ```
+
+**Acknowledgments (upstream):** Trae-oriented notes here build on ideas from [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep).
 
 **Two ways to install Skills in Trae:**
 
@@ -39,11 +41,11 @@ Method 2: Manual copy to skills directory
 ```powershell
 # Global installation (available in all projects)
 New-Item -ItemType Directory -Path "$env:USERPROFILE\.trae\skills" -Force
-Copy-Item -Path "C:\path\to\Auto-claude-code-research-in-sleep\skills\*" -Destination "$env:USERPROFILE\.trae\skills\" -Recurse -Force
+Copy-Item -Path "C:\path\to\SurveyMind\skills\*" -Destination "$env:USERPROFILE\.trae\skills\" -Recurse -Force
 
 # Project-level installation (available only in current project)
 New-Item -ItemType Directory -Path ".\.trae\skills" -Force
-Copy-Item -Path "C:\path\to\Auto-claude-code-research-in-sleep\skills\*" -Destination ".\.trae\skills\" -Recurse -Force
+Copy-Item -Path "C:\path\to\SurveyMind\skills\*" -Destination ".\.trae\skills\" -Recurse -Force
 ```
 
 After installation, simply describe your needs in natural language within the corresponding scope to trigger the relevant skill.

@@ -97,7 +97,7 @@ def save_fig(fig, name, fmt=FORMAT):
 
 ### Step 3: Auto-Select Figure Type
 
-Use this decision tree for data-driven figures (inspired by Imbad0202/academic-research-skills):
+Use this decision tree for data-driven figures (inspired by [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)):
 
 | Data Pattern | Recommended Type | Size |
 |-------------|-----------------|------|
@@ -220,11 +220,11 @@ After this start call, immediately save the returned `jobId` and poll `mcp__gemi
 
 ### Step 8: Quality Checklist
 
-Before finishing, verify each figure (from pedrohcgs/claude-code-my-workflow):
+Before finishing, verify each figure (from [pedrohcgs/claude-code-my-workflow](https://github.com/pedrohcgs/claude-code-my-workflow)):
 
 - [ ] Font size readable at printed paper size (not too small)
 - [ ] Colors distinguishable in grayscale (print-friendly)
-- [ ] **No title inside figures** — titles go only in LaTeX `\caption{}` (from pedrohcgs)
+- [ ] **No title inside figures** — titles go only in LaTeX `\caption{}` (from [pedrohcgs/claude-code-my-workflow](https://github.com/pedrohcgs/claude-code-my-workflow))
 - [ ] Legend does not overlap data
 - [ ] Axis labels have units where applicable
 - [ ] Axis labels are publication-quality (not variable names like `emp_rate`)

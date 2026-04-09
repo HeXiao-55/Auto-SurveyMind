@@ -80,12 +80,13 @@ ModelScope 同时提供两套 API 端点，分别对应 ARIS 的两个角色：
 - Python 3 可用：`python3 --version`（用 `which python3` 确认路径）
 - 已获取 ModelScope API Key（见上方）
 
-### Step 1：克隆仓库
+### Step 1：进入本仓库根目录
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep
+cd /path/to/SurveyMind
 ```
+
+**致谢（上游）：** 部分流程说明参考了开源项目 [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)。
 
 ### Step 2：安装 Python 依赖
 

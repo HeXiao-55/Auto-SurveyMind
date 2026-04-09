@@ -157,16 +157,10 @@ codex mcp add gemini-review --env GEMINI_REVIEW_BACKEND=api --env GEMINI_REVIEW_
 - 在同一套环境上的后续重试里，把 `GEMINI_REVIEW_MODEL` 设为 `gemini-flash-latest` 后，同步 review、异步 `review_start` -> `review_status`、以及带 thread 的 `review_reply_start` -> `review_status` 都已跑通
 - 对长 prompt，优先使用异步 `review_start` / `review_reply_start` + `review_status`
 
-## 引用与来源
+## 致谢（上游，GitHub）
 
-- 上游 ARIS 的 overlay 组织方式：
-  - <https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/skills/skills-codex-claude-review>
-  - <https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/mcp-servers/claude-review>
-- 本仓库里的本地 Gemini reviewer bridge：
-  - `mcp-servers/gemini-review/README.md`
-- 本覆盖层依赖的 Gemini 官方后端：
-  - 官方 Gemini API：<https://ai.google.dev/api>
-  - 官方 Gemini CLI：<https://github.com/google-gemini/gemini-cli>
-  - AI Studio API key：<https://aistudio.google.com/apikey>
+- [Auto-claude-code-research-in-sleep — skills-codex-claude-review](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/skills/skills-codex-claude-review)
+- [Auto-claude-code-research-in-sleep — mcp-servers/claude-review](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep/tree/main/mcp-servers/claude-review)
+- [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)
 
-这个包保持了上游 ARIS review skill 的组织和调用形状，但把 reviewer transport 换成了本地 `gemini-review` bridge。现在它覆盖了本仓库里所有原先依赖第二个 Codex reviewer 或 `mcp__codex__codex` 审稿步骤的预定义 Codex skill。这里没有直接依赖通用的 Gemini MCP server 成品包，因为 ARIS 这组 review skills 依赖的是特定的 `review*` 工具契约、可恢复的 review thread 语义，以及 poster PNG 这类本地图像审查入口。
+本地 bridge 的实现说明见本仓库 `mcp-servers/gemini-review/`。

@@ -23,8 +23,7 @@ The install order matters:
 ## Install
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep
+cd /path/to/SurveyMind
 
 mkdir -p ~/.codex/skills
 cp -a skills/skills-codex/* ~/.codex/skills/
@@ -34,6 +33,8 @@ mkdir -p ~/.codex/mcp-servers/claude-review
 cp mcp-servers/claude-review/server.py ~/.codex/mcp-servers/claude-review/server.py
 codex mcp add claude-review -- python3 ~/.codex/mcp-servers/claude-review/server.py
 ```
+
+**Acknowledgments (upstream):** The overlay layout and reviewer wiring follow patterns from [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep).
 
 If your Claude login depends on a shell helper such as `claude-aws`, use the wrapper:
 

@@ -52,8 +52,7 @@ Antigravity supports multiple models as the **executor** (the model that runs AR
 ### 3.1 Install skills
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep
+cd /path/to/SurveyMind
 
 # Option A: Global install (available across all projects)
 mkdir -p ~/.gemini/antigravity/skills
@@ -63,6 +62,8 @@ cp -r skills/* ~/.gemini/antigravity/skills/
 mkdir -p /path/to/your/project/.agents/skills
 cp -r skills/* /path/to/your/project/.agents/skills/
 ```
+
+**Acknowledgments (upstream):** Skill packaging ideas in this guide build on [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep).
 
 > **Important:** Antigravity discovers skills from `~/.gemini/antigravity/skills/` (global) and `<workspace>/.agents/skills/` (project-scoped). The agent sees skill names and descriptions at startup, then loads full SKILL.md content when relevant.
 

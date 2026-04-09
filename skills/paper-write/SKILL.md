@@ -244,7 +244,7 @@ import re
 
 This prevents bib bloat (e.g., 948 lines → 215 lines in testing).
 
-**Citation verification rules (from claude-scholar + Imbad0202):**
+**Citation verification rules (from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) + [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)):**
 1. Every BibTeX entry must have: author, title, year, venue/journal
 2. Prefer published venue versions over arXiv preprints (if published)
 3. Use consistent key format: `{firstauthor}{year}{keyword}` (e.g., `ho2020denoising`)
@@ -304,7 +304,7 @@ mcp__codex__codex:
 
 Apply CRITICAL and MAJOR fixes. Document MINOR issues for the user.
 
-### Step 7: Reverse Outline Test (from Research-Paper-Writing-Skills)
+### Step 7: Reverse Outline Test (from [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills))
 
 After drafting all sections:
 
@@ -360,4 +360,4 @@ Keep using the reverse-outline test and anti-inflation polish from the main work
 
 ## Acknowledgements
 
-Writing methodology adapted from [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills) (CCF award-winning methodology). Citation verification from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) and [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills). This hybrid pack's writing-guidance overlay is adapted from Orchestra Research's paper-writing materials.
+Writing methodology adapted from [Research-Paper-Writing-Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills). Citation verification from [claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) and [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills).

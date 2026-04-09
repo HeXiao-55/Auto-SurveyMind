@@ -22,14 +22,17 @@
 npm install -g @anthropic-ai/claude-code
 ```
 
-### 第 2 步：克隆 MCP Servers
+### 第 2 步：安装 MCP Servers 依赖
+
+在**本仓库根目录**执行：
 
 ```bash
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
-cd Auto-claude-code-research-in-sleep/mcp-servers/llm-chat
+cd /path/to/SurveyMind/mcp-servers/llm-chat
 pip install -r requirements.txt
 cd ../..
 ```
+
+**致谢（上游）：** 本配置文档的部分结构参考了开源项目 [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)。
 
 ### 第 3 步：配置 `~/.claude/settings.json`
 
@@ -184,12 +187,8 @@ claude
 - `mcp__glm__chat` 工具可用
 - 网络可访问智谱 API 端点
 
-## 参考
+## 参考（GitHub）
 
-- [Auto-claude-code-research-in-sleep 主项目](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)
-- [方案 A：GLM + GPT](./README.md#alt-a-glm--gpt)
-- [方案 B：GLM + MiniMax](./README.md#alt-b-glm--minimax)
+- [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)
 
----
-
-*此配置方案由社区贡献，适用于 Auto-claude-code-research-in-sleep 项目*
+同目录下的 `README.md` 亦包含方案 A/B 的交叉说明。

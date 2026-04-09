@@ -15,11 +15,13 @@
 
 ## 2. Setup
 最好在trae中创建一个单独的智能体负责运行ARIS工作流，避免与其他智能体冲突，并能给ARIS工作流提供扮演角色的必要信息。
-### 2.1 克隆仓库并配置 Skills
+### 2.1 在本地打开仓库并配置 Skills
 
 ```powershell
-git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
+cd C:\path\to\SurveyMind
 ```
+
+**致谢（上游）：** 本文中与 Trae 相关的说明参考了开源项目 [Auto-claude-code-research-in-sleep](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep)。
 
 **安装 Skills 到 Trae 的两种方式：**
 
@@ -38,12 +40,12 @@ git clone https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git
 # 全局安装（所有项目可用）
 $globalSkillsDir = Join-Path $env:USERPROFILE ".trae\skills"
 New-Item -ItemType Directory -Path $globalSkillsDir -Force | Out-Null
-Copy-Item -Path ".\Auto-claude-code-research-in-sleep\skills\*" -Destination $globalSkillsDir -Recurse -Force
+Copy-Item -Path ".\skills\*" -Destination $globalSkillsDir -Recurse -Force
 
 # 项目级安装（仅当前项目可用）
 $projectSkillsDir = ".\.trae\skills"
 New-Item -ItemType Directory -Path $projectSkillsDir -Force | Out-Null
-Copy-Item -Path ".\Auto-claude-code-research-in-sleep\skills\*" -Destination $projectSkillsDir -Recurse -Force
+Copy-Item -Path ".\skills\*" -Destination $projectSkillsDir -Recurse -Force
 ```
 
 安装完成后，在对应范围内直接用自然语言描述需求即可触发相应技能。
