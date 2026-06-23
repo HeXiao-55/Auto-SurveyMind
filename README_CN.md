@@ -146,6 +146,11 @@ SurveyMind 支持基于 MCP 的外部集成，建议从以下位置开始：
 - `mcp-servers/`
 - `tools/mcp_base.py`（新增 MCP server 适配器的基类）
 
+可选的 DeepXiv MCP bridge 已提供：
+
+- `mcp-servers/deepxiv/server.py`
+- `mcp-servers/deepxiv/README.md`
+
 ## 故障排查
 
 - **找不到 Skill**：重新执行 `./install.sh`

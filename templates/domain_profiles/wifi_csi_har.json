@@ -1,0 +1,194 @@
+{
+  "domain": "wifi_csi_har",
+  "display_name": "WiFi CSI Human Activity Recognition",
+  "description": "Channel State Information based human activity recognition using commodity WiFi hardware",
+
+  "keywords": {
+    "primary": [
+      "CSI", "channel state information", "WiFi sensing", "human activity recognition",
+      "HAR", "gesture recognition", "fall detection", "indoor localization"
+    ],
+    "preprocessing": [
+      "Hampel filter", "phase sanitization", "conjugate multiplication",
+      "principal component analysis", "PCA", "wavelet transform", "STFT",
+      "short-time Fourier transform", "butterworth filter", "bandpass filter",
+      "empirical mode decomposition", "EMD", "discrete wavelet transform",
+      "DWT", "amplitude", "phase", "CSI ratio"
+    ],
+    "models": [
+      "1D-CNN", "2D-CNN", "LSTM", "BiLSTM", "GRU", "transformer",
+      "attention mechanism", "residual network", "TCN", "temporal convolutional",
+      "autoencoder", "variational autoencoder", "contrastive learning",
+      "self-supervised", "federated learning"
+    ],
+    "datasets": [
+      "WIDAR3", "WIDAR3.0", "SignFi", "NTU-Fi", "UT-HAR", "ARIL",
+      "Falldefi", "WiAR", "WiGest", "CrossSense", "EI"
+    ],
+    "venues": [
+      "MobiCom", "SenSys", "IPSN", "UbiComp", "IMWUT", "INFOCOM",
+      "TMC", "TPAMI", "IoTJ", "TOSN"
+    ]
+  },
+
+  "actions": {
+    "basic_activities": ["sit", "stand", "walk", "run", "fall", "lie"],
+    "gestures": ["wave", "push", "pull", "clap", "slide", "draw circle"],
+    "fine_grained": ["bend", "jump", "punch", "kick", "rotate"]
+  },
+
+  "data_format": {
+    "csi_shape": "[num_packets, num_subcarriers, num_antennas]",
+    "typical_subcarriers": [30, 56, 114, 242],
+    "typical_antennas": [1, 2, 3],
+    "sample_rate_hz": [100, 200, 1000],
+    "window_size_s": [1.0, 2.0, 3.0],
+    "file_formats": [".mat", ".npz", ".csv", ".dat"]
+  },
+
+  "preprocessing_strategies": [
+    {
+      "name": "amplitude_only",
+      "description": "Use CSI amplitude, discard phase (robust to hardware variation)",
+      "steps": ["extract amplitude", "Hampel filter outliers", "bandpass 0.3-3Hz", "normalize per-subcarrier"],
+      "cpu_cost": "low",
+      "recommended_for": ["basic activities", "coarse gestures"]
+    },
+    {
+      "name": "phase_sanitized",
+      "description": "Phase sanitization via conjugate multiplication, more info-rich",
+      "steps": ["conjugate multiply adjacent antennas", "unwrap phase", "linear regression detrend", "normalize"],
+      "cpu_cost": "low",
+      "recommended_for": ["fine-grained gestures", "location-dependent tasks"]
+    },
+    {
+      "name": "spectrogram",
+      "description": "Convert time-series CSI to 2D time-frequency image (STFT/wavelet)",
+      "steps": ["select PCA top-k subcarriers", "STFT with hamming window", "resize to fixed HxW", "normalize [0,1]"],
+      "cpu_cost": "medium",
+      "recommended_for": ["CNN-based models", "transfer learning"]
+    },
+    {
+      "name": "pca_denoised",
+      "description": "PCA across subcarriers to remove multipath noise",
+      "steps": ["reshape to [T, N_sub]", "fit PCA keep top-k", "reconstruct denoised signal", "normalize"],
+      "cpu_cost": "low",
+      "recommended_for": ["noisy environments", "lightweight models"]
+    }
+  ],
+
+  "model_architectures": [
+    {
+      "name": "csi_1dcnn",
+      "display_name": "1D-CNN",
+      "input": "flattened CSI time-series [T, C]",
+      "params_k": 50,
+      "cpu_inference_ms": 5,
+      "recommended_cpu": true,
+      "description": "3-layer 1D conv + global avg pool, fast and accurate for basic HAR"
+    },
+    {
+      "name": "csi_bilstm",
+      "display_name": "BiLSTM",
+      "input": "CSI sequence [T, C]",
+      "params_k": 200,
+      "cpu_inference_ms": 15,
+      "recommended_cpu": true,
+      "description": "Bidirectional LSTM captures temporal dependencies"
+    },
+    {
+      "name": "csi_cnn_lstm",
+      "display_name": "CNN-LSTM",
+      "input": "CSI sequence [T, C]",
+      "params_k": 150,
+      "cpu_inference_ms": 12,
+      "recommended_cpu": true,
+      "description": "CNN feature extractor + LSTM temporal modeling"
+    },
+    {
+      "name": "csi_lite_transformer",
+      "display_name": "Lite-Transformer",
+      "input": "CSI spectrogram or sequence [T, C]",
+      "params_k": 300,
+      "cpu_inference_ms": 30,
+      "recommended_cpu": true,
+      "description": "2-head, 2-layer transformer with positional encoding, CPU-friendly"
+    },
+    {
+      "name": "csi_resnet1d",
+      "display_name": "ResNet-1D",
+      "input": "CSI time-series [T, C]",
+      "params_k": 400,
+      "cpu_inference_ms": 20,
+      "recommended_cpu": true,
+      "description": "Residual blocks on 1D signal, strong baseline for activity recognition"
+    }
+  ],
+
+  "training_defaults": {
+    "optimizer": "Adam",
+    "lr": 1e-3,
+    "lr_scheduler": "ReduceLROnPlateau",
+    "batch_size": 32,
+    "epochs": 50,
+    "early_stopping_patience": 10,
+    "weight_decay": 1e-4,
+    "device": "cpu",
+    "num_workers": 0,
+    "seed": 42
+  },
+
+  "evaluation_protocol": {
+    "primary_metric": "accuracy",
+    "secondary_metrics": ["f1_macro", "confusion_matrix"],
+    "split": "train/val/test = 0.6/0.2/0.2",
+    "cross_validation": "leave-one-subject-out",
+    "minimum_target_accuracy": 0.80
+  },
+
+  "datasets_info": {
+    "WIDAR3.0": {
+      "url": "http://tns.thss.tsinghua.edu.cn/widar3/",
+      "paper": "Widar3.0: Zero-Effort Cross-User Gesture Recognition with Wi-Fi",
+      "activities": 22,
+      "subjects": 75,
+      "format": ".mat",
+      "size_gb": 5.2,
+      "note": "Large dataset, sample subset for CPU training"
+    },
+    "UT-HAR": {
+      "url": "https://github.com/ermongroup/Wifi_Activity_Recognition",
+      "paper": "WiFi-based Human Activity Recognition",
+      "activities": 7,
+      "subjects": 6,
+      "format": ".csv",
+      "size_gb": 0.3,
+      "note": "Small, good for quick validation"
+    },
+    "NTU-Fi": {
+      "url": "https://github.com/xyanchen/WiFi-CSI-Sensing-Benchmark",
+      "paper": "NTU-Fi: A WiFi-based Human Activity Recognition Dataset",
+      "activities": 6,
+      "subjects": 20,
+      "format": ".mat",
+      "size_gb": 1.0,
+      "note": "Benchmark dataset with public leaderboard"
+    },
+    "SignFi": {
+      "url": "https://yongsen.github.io/SignFi/",
+      "paper": "SignFi: Sign Language Recognition Using WiFi",
+      "activities": 276,
+      "subjects": 5,
+      "format": ".mat",
+      "size_gb": 0.8,
+      "note": "Sign language gestures, fine-grained"
+    }
+  },
+
+  "routing_rules": {
+    "tier1_keywords": ["CSI", "channel state information", "WiFi HAR", "WiFi sensing", "ISAC"],
+    "tier2_keywords": ["activity recognition", "gesture", "fall detection", "indoor positioning"],
+    "tier3_keywords": ["time series classification", "deep learning sensing", "RF sensing"],
+    "exclude_keywords": ["GPS", "camera", "video", "wearable", "IMU", "accelerometer"]
+  }
+}

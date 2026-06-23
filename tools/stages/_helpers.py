@@ -12,7 +12,9 @@ from pathlib import Path
 TIER_SCOPE_MAP = {
     "all": {"Tier 1 – Core", "Tier 2 – High Relevance", "Tier 3 – Related", "Tier 4 – Peripheral"},
     "tier12": {"Tier 1 – Core", "Tier 2 – High Relevance"},
+    "tier1_tier2": {"Tier 1 – Core", "Tier 2 – High Relevance"},
     "tier1": {"Tier 1 – Core"},
+    "tier3_tier4": {"Tier 3 – Related", "Tier 4 – Peripheral"},
 }
 
 

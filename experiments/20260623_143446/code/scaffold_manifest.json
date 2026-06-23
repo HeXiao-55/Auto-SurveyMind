@@ -1,0 +1,5 @@
+{
+  "train_script": "experiments/task_20260623_143446/code/train.py",
+  "inference_script": "experiments/task_20260623_143446/code/inference.py",
+  "requirements": "experiments/task_20260623_143446/code/requirements.txt"
+}

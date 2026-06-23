@@ -1,0 +1,62 @@
+{
+  "task_id": "task_20260623_143446",
+  "created_at": "2026-06-23T14:34:46.341197",
+  "raw_description": "WiFi CSI人体行为识别，坐站走摔倒挥手，CPU，准确率85%，UT-HAR数据集",
+  "domain": "wifi_csi_har",
+  "data_modality": "CSI matrix",
+  "domain_profile": "templates/domain_profiles/wifi_csi_har.json",
+  "dataset": "UT-HAR",
+  "num_classes": 5,
+  "actions": ["sit", "stand", "walk", "fall", "wave"],
+  "data_dir": "data/UT-HAR",
+  "constraints": {
+    "device": "cpu",
+    "max_params_M": 0.5,
+    "max_inference_ms": 30,
+    "real_time": false
+  },
+  "target_metrics": {
+    "accuracy": 0.85
+  },
+  "training": {
+    "optimizer": "Adam",
+    "lr": 1e-3,
+    "lr_scheduler": "ReduceLROnPlateau",
+    "batch_size": 32,
+    "epochs": 50,
+    "early_stopping_patience": 10,
+    "weight_decay": 1e-4,
+    "num_workers": 0,
+    "seed": 42
+  },
+  "evaluation": {
+    "primary_metric": "accuracy",
+    "secondary_metrics": ["f1_macro", "confusion_matrix"],
+    "split": "train/val/test = 0.6/0.2/0.2",
+    "cross_validation": "leave-one-subject-out"
+  },
+  "pipeline_status": {
+    "task_parse": "completed",
+    "algo_plan": "completed",
+    "algo_implement": "pending",
+    "reflect_improve": "pending",
+    "model_deliver": "pending"
+  },
+  "agent_decisions": [
+    {
+      "step": "task_parse",
+      "timestamp": "2026-06-23T14:34:46.341200",
+      "decision": "Detected domain=wifi_csi_har, device=cpu, dataset=UT-HAR, actions=[sit,stand,walk,fall,wave], num_classes=5, target_acc=0.85"
+    },
+    {
+      "step": "task_parse_validate",
+      "timestamp": "2026-06-23T14:35:10",
+      "decision": "Validated against domain_profile: UT-HAR standard has 7 classes, user selected 5. wave not in UT-HAR standard set but will be treated as gesture class. Further validation needed during data loading. Constraints: CPU-only, max 0.5M params, max 30ms inference. Training defaults from domain profile: Adam(lr=1e-3), batch_size=32, epochs=50, early_stopping=10."
+    },
+    {
+      "step": "algo_plan",
+      "timestamp": "2026-06-23T14:36:00",
+      "decision": "Selected amplitude_only preprocessing (hampel→bandpass→z-score) + ResNet-1D architecture (0.4M params, ~20ms CPU inference). UT-HAR native 7 classes mapped to 5 target actions (pickup→wave as proxy). Code scaffold generated: train.py, inference.py, requirements.txt."
+    }
+  ]
+}

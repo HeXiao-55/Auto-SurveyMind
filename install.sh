@@ -32,9 +32,15 @@ if [ -d "$SCRIPT_DIR/skills" ]; then
         skill_name=$(basename "$skill_dir")
         target_dir="$SKILLS_DIR/$skill_name"
 
+        # Skip empty skill directories (no SKILL.md)
+        if [ ! -f "$skill_dir/SKILL.md" ]; then
+            echo "  Skipping: $skill_name (empty, no SKILL.md)"
+            continue
+        fi
+
         if [ -d "$target_dir" ]; then
             echo "  Updating: $skill_name"
-            cp -r "$skill_dir"* "$target_dir/"
+            cp -r "$skill_dir/." "$target_dir/"
         else
             echo "  Installing: $skill_name"
             cp -r "$skill_dir" "$target_dir"
@@ -75,16 +81,20 @@ fi
 # Step 4: Verify installation
 echo "[5/5] Verifying installation..."
 INSTALLED_COUNT=0
-for skill_name in survey-pipeline research-lit paper-analysis taxonomy-build gap-identify survey-write; do
+for skill_name in survey-pipeline research-lit paper-analysis taxonomy-build gap-identify survey-write code-discover repo-setup repo-reproduce repo-adapt reproduce-pipeline task-parser algo-plan algo-implement reflect-improve model-deliver algo-pipeline; do
     if [ -f "$SKILLS_DIR/$skill_name/SKILL.md" ]; then
         INSTALLED_COUNT=$((INSTALLED_COUNT + 1))
     fi
 done
 echo "  Installed $INSTALLED_COUNT skills"
 
-# Create default workspace surveys directory
+# Create default workspace directories
 mkdir -p "$SCRIPT_DIR/surveys"
+mkdir -p "$SCRIPT_DIR/experiments"
+mkdir -p "$SCRIPT_DIR/data"
 echo "  Created output base: $SCRIPT_DIR/surveys"
+echo "  Created experiments dir: $SCRIPT_DIR/experiments"
+echo "  Created data dir: $SCRIPT_DIR/data"
 
 echo ""
 echo "=================================="
@@ -102,5 +112,13 @@ echo ""
 echo "  3. Run a survey:"
 echo "     > /survey-pipeline \"your research topic\""
 echo ""
-echo "Output will be saved under: $SCRIPT_DIR/surveys/survey_<topic_slug>/"
+echo "  4. Run algorithm R&D pipeline (WiFi CSI HAR):"
+echo "     > /algo-pipeline \"WiFi CSI人体行为识别，CPU，85%准确率\""
+echo ""
+echo "  5. Start the Dashboard:"
+echo "     pip install gradio matplotlib"
+echo "     python3 mcp-servers/dashboard/server.py"
+echo ""
+echo "Survey outputs:   $SCRIPT_DIR/surveys/survey_<topic_slug>/"
+echo "Algo experiments: $SCRIPT_DIR/experiments/task_<id>/"
 echo ""

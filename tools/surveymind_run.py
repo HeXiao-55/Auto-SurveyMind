@@ -45,10 +45,13 @@ from stages import (
     run_arxiv_discover,
     run_batch_triage,
     run_brainstorm,
+    run_code_discover,
     run_corpus_extract,
     run_gap_identify,
     run_paper_analysis,
     run_paper_download,
+    run_repo_reproduce,
+    run_repo_setup,
     run_survey_write,
     run_taxonomy_build,
     run_taxonomy_alloc,
@@ -73,6 +76,10 @@ STAGES = [
     "taxonomy-alloc",   # Taxonomy-based allocation of papers to subsections
     "validate",          # Run citation/data/guardrails validation gate
     "validate-and-improve",  # Run validation and auto-improve based on results
+    "code-discover",     # Discover GitHub repos for survey papers
+    "repo-setup",        # Clone repos and generate setup plans
+    "repo-reproduce",    # Execute setup plans and run demos
+    "reproduce-all",     # Run code-discover → repo-setup → repo-reproduce
     "all",               # Run all stages in order
 ]
 
@@ -119,6 +126,8 @@ def _resolve_survey_paths(args, project_root: Path) -> None:
     args.gate3_dir = str(survey_root / "gate3_taxonomy")
     args.gate4_dir = str(survey_root / "gate4_gap_analysis")
     args.gate5_dir = str(survey_root / "gate5_survey_write")
+    args.gate6_dir = str(survey_root / "gate6_code_discovery")
+    args.gate7_dir = str(survey_root / "gate7_reproduction")
     args.validation_dir = str(survey_root / "validation" / "reports")
 
     args.scope_file = str(Path(args.gate0_dir) / "SURVEY_SCOPE.md")
@@ -163,6 +172,9 @@ STAGE_HANDLERS = {
     "taxonomy-alloc": run_taxonomy_alloc,
     "validate": run_validate,
     "validate-and-improve": run_validate_and_improve,
+    "code-discover": run_code_discover,
+    "repo-setup": run_repo_setup,
+    "repo-reproduce": run_repo_reproduce,
 }
 
 
@@ -379,6 +391,30 @@ def main():
         default=True,
         help="Stop pipeline immediately when a stage fails (default: on)",
     )
+    # Reproduction pipeline arguments
+    ap.add_argument(
+        "--reproduction-max-repos",
+        type=int,
+        default=10,
+        help="Max repos to discover/clone/reproduce (default: 10)",
+    )
+    ap.add_argument(
+        "--reproduction-timeout",
+        type=int,
+        default=120,
+        help="Timeout per repo clone in seconds (default: 120)",
+    )
+    ap.add_argument(
+        "--reproduction-dir",
+        default=None,
+        help="Custom reproduction output directory (default: <survey_root>/gate7_reproduction)",
+    )
+    ap.add_argument(
+        "--code-discover-tier-scope",
+        default="tier1_tier2",
+        choices=["tier1", "tier1_tier2", "all"],
+        help="Paper tier scope for code discovery (default: tier1_tier2)",
+    )
 
     args = ap.parse_args()
 
@@ -402,6 +438,11 @@ def main():
     else:
         # keep it survey-root-relative for _resolve_priority_path
         args.analysis_priority_json = str(priority_path)
+
+    # Override reproduction directory if custom path specified
+    if args.reproduction_dir:
+        repro_path = Path(args.reproduction_dir)
+        args.gate7_dir = str(repro_path if repro_path.is_absolute() else (root / repro_path).resolve())
 
     if args.fail_on_missing_analysis:
         args.analysis_report_policy = "strict"
@@ -453,6 +494,8 @@ def main():
         ]
         if not args.discover_arxiv:
             stages_to_run = [s for s in stages_to_run if s != "arxiv-discover"]
+    elif args.stage == "reproduce-all":
+        stages_to_run = ["code-discover", "repo-setup", "repo-reproduce"]
     else:
         stages_to_run = [args.stage]
 

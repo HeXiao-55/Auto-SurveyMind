@@ -21,6 +21,14 @@
       "env": {
         "OPENAI_API_KEY": "sk-..."
       }
+    },
+    "deepxiv": {
+      "command": "python3",
+      "args": ["/absolute/path/to/SurveyMind/mcp-servers/deepxiv/server.py"],
+      "env": {
+        "DEEPXIV_BIN": "/Users/yourname/Library/Python/3.12/bin/deepxiv",
+        "DEEPXIV_TOKEN": "dxv_..."
+      }
     }
   }
 }

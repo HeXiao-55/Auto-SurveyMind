@@ -27,6 +27,24 @@ from stages.survey_synthesis import (
     run_taxonomy_build,
     run_validate_and_improve,
 )
+from stages.code_discover import (
+    run_code_discover,
+)
+from stages.repo_setup import (
+    run_repo_setup,
+)
+from stages.repo_reproduce import (
+    run_repo_reproduce,
+)
+from stages.algo_implement import (
+    run_algo_implement,
+)
+from stages.reflect_improve import (
+    run_reflect_improve,
+)
+from stages.model_deliver import (
+    run_model_deliver,
+)
 
 __all__ = [
     "run_arxiv_discover",
@@ -43,4 +61,10 @@ __all__ = [
     "run_trace_init",
     "run_trace_sync",
     "run_validate",
+    "run_code_discover",
+    "run_repo_setup",
+    "run_repo_reproduce",
+    "run_algo_implement",
+    "run_reflect_improve",
+    "run_model_deliver",
 ]

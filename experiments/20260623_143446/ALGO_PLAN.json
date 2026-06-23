@@ -1,0 +1,71 @@
+{
+  "task_id": "task_20260623_143446",
+  "created_at": "2026-06-23T14:36:00",
+  "domain": "wifi_csi_har",
+  "dataset": "UT-HAR",
+  "num_classes": 5,
+  "actions": ["sit", "stand", "walk", "fall", "wave"],
+  "preprocessing": {
+    "strategy": "amplitude_only",
+    "steps": [
+      {"name": "extract_amplitude", "params": {}},
+      {"name": "hampel_filter", "params": {"k": 5, "threshold": 3.0}},
+      {"name": "bandpass_filter", "params": {"low_hz": 0.3, "high_hz": 3.0}},
+      {"name": "normalize", "params": {"method": "per_channel_z_score"}}
+    ],
+    "output_shape": "[C, T]",
+    "cpu_cost": "low",
+    "rationale": "CPU-friendly, robust to hardware variation. Amplitude-based processing is the standard for basic HAR activities on UT-HAR. The Hampel filter removes CSI outliers, bandpass retains 0.3-3Hz (covering human motion frequencies), and per-channel z-score normalization stabilizes training."
+  },
+  "model": {
+    "architecture": "csi_resnet1d",
+    "display_name": "ResNet-1D",
+    "params_M": 0.4,
+    "params_K": 400,
+    "estimated_cpu_inference_ms": 20,
+    "input_format": "[B, C, T]",
+    "rationale": "ResNet-1D with residual blocks provides the strongest CPU-friendly baseline for time-series classification. Residual connections prevent gradient vanishing and enable deeper feature extraction. At 400K params and ~20ms inference, it fits comfortably within the 0.5M/30ms constraints while giving the best chance of reaching 85% accuracy on 5-class WiFi CSI HAR."
+  },
+  "training": {
+    "optimizer": "Adam",
+    "lr": 1e-3,
+    "lr_scheduler": "ReduceLROnPlateau",
+    "lr_scheduler_params": {"factor": 0.5, "patience": 5},
+    "batch_size": 32,
+    "epochs": 50,
+    "early_stopping_patience": 10,
+    "weight_decay": 1e-4,
+    "device": "cpu",
+    "num_workers": 0,
+    "seed": 42,
+    "loss": "CrossEntropyLoss",
+    "augmentation": ["time_shift", "amplitude_jitter"]
+  },
+  "evaluation": {
+    "primary_metric": "accuracy",
+    "secondary_metrics": ["f1_macro", "confusion_matrix"],
+    "split": "train/val/test = 0.6/0.2/0.2"
+  },
+  "ablation_candidates": [
+    {"name": "bilstm_arch", "change": "replace ResNet-1D with BiLSTM (200K params, simpler model)"},
+    {"name": "no_hampel", "change": "remove Hampel filter step, rely on normalization only"},
+    {"name": "lr_0.001_warmup", "change": "add linear warmup for first 5 epochs then cosine decay"},
+    {"name": "cm_ratio", "change": "add conjugate multiplication (phase sanitization) before amplitude extraction"}
+  ],
+  "literature_support": [
+    {"paper": "WiFi-based Human Activity Recognition (UT-HAR)", "supports": "Dataset baseline, CNN-based methods for CSI HAR"},
+    {"paper": "Widar3.0: Zero-Effort Cross-User Gesture Recognition", "supports": "ResNet-style architectures for WiFi sensing tasks"}
+  ],
+  "agent_decisions": [
+    {
+      "step": "algo_plan_preprocess",
+      "timestamp": "2026-06-23T14:36:00",
+      "decision": "Selected amplitude_only strategy: extract_amplitude → hampel_filter(k=5,thr=3.0) → bandpass(0.3-3Hz) → per_channel_z_score. CPU cost=low, recommended for basic activities."
+    },
+    {
+      "step": "algo_plan_model",
+      "timestamp": "2026-06-23T14:36:00",
+      "decision": "Selected ResNet-1D (0.4M params, ~20ms CPU inference). Strongest CPU-friendly baseline for 85% accuracy target. Fits within 0.5M/30ms constraints."
+    }
+  ]
+}
